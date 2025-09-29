@@ -20,9 +20,8 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.terrains.terrain_generator_cfg import TerrainGeneratorCfg
 import isaaclab.terrains as terrain_gen
 from isaaclab.sensors.frame_transformer import FrameTransformerCfg
-from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sensors import ContactSensorCfg,ImuCfg
 import gymnasium.spaces as spaces
-
 
 BITTLE_ASSET_DIR = Path(__file__).resolve().parent
 
@@ -32,7 +31,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== ENV / TIMING ======
     decimation = 2
     episode_length_s = 20
-    action_space = spaces.Box(low= np.array([50,0.1,0.333],dtype=np.float32),high=np.array([200,0.96,1],dtype=np.float32),shape=(3,))
+    action_space = spaces.Box(low= 0,high=1,dtype=np.float32),shape=(3,) #normalized actions
     n_dim_obs=8+8+3+3
     # picked from the official Bittle documentation, usd file was adjusted to match
     jointangleslimit=np.deg2rad(125)
@@ -47,7 +46,8 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     
     observation_space = spaces.Box(low=states_low,high=states_high,shape=(n_dim_obs,),dtype=np.float32)
     state_space = 0
-    action_scale = 1
+    action_scale = np.array([150,0.667,0.46]) #forward velocity, period, duty cycle respectively
+    action_bias=np.array([50,0.33,0.5])
 
     # ====== SIMULATION ======
     sim: SimulationCfg = SimulationCfg(
@@ -107,6 +107,12 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
         },
     )
     robot_cfg: ArticulationCfg = bittle
+    
+    #sensors
+
+    imu=ImuCfg(
+        prim_path="/World/envs/env_.*/bittle/base_frame_link/mainboard_link/imu_link/IMU_Sensor",debug_vis=True)
+
 
     # ====== FRAME TRANSFORMER (for feet) ======
     # lf_rf_transformer: FrameTransformerCfg = FrameTransformerCfg(
@@ -130,7 +136,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     rew_vx=-1
     rew_vy=+5
     rew_vz=-1
-    rew_joint_energy=-0.001
+    rew_joint_energy=-0.01
     rew_roll=-0.5
     rew_pitch=-0.5
 

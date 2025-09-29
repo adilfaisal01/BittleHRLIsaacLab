@@ -40,13 +40,14 @@ class tensorgaitParams:
     
     def __post_init__(self):
         """NUCLEAR OPTION: FORCE ALL TENSORS TO float32 - NO EXCEPTIONS!"""
-        self.H = self.H.to(dtype=torch.float32).float()
-        self.x_COMshift = self.x_COMshift.to(dtype=torch.float32).float()
-        self.robotheight = self.robotheight.to(dtype=torch.float32).float()
-        self.dutycycle = self.dutycycle.to(dtype=torch.float32).float()
-        self.forwardvel = self.forwardvel.to(dtype=torch.float32).float()
-        self.T = self.T.to(dtype=torch.float32).float()
-        self.yaw_rate = self.yaw_rate.to(dtype=torch.float32).float()
+        self.device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.H = self.H.to(dtype=torch.float32).float().to(device=self.device)
+        self.x_COMshift = self.x_COMshift.to(dtype=torch.float32).float().to(device=self.device)
+        self.robotheight = self.robotheight.to(dtype=torch.float32).float().to(device=self.device)
+        self.dutycycle = self.dutycycle.to(dtype=torch.float32).float().to(device=self.device)
+        self.forwardvel = self.forwardvel.to(dtype=torch.float32).float().to(device=self.device)
+        self.T = self.T.to(dtype=torch.float32).float().to(device=self.device)
+        self.yaw_rate = self.yaw_rate.to(dtype=torch.float32).float().to(device=self.device)
 
 
 class VectorizedHopfOscillator:
@@ -55,16 +56,16 @@ class VectorizedHopfOscillator:
 
     def tensor_hopf_cpg_dot(self, Q, R, delta, b, mu, alpha, gamma, dt):
         # NUCLEAR OPTION: FORCE EVERYTHING TO float32 AT THE START
-        Q = Q.to(dtype=torch.float32).float()
-        R = R.to(dtype=torch.float32).float()
-        
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        Q = Q.to(device=device).to(dtype=torch.float32).float()
+        R = R.to(device=device).to(dtype=torch.float32).float()        
         # Convert ALL scalars to float32 tensors - NO MERCY
-        delta = torch.tensor(float(delta), dtype=torch.float32, device=Q.device)
-        b = torch.tensor(float(b), dtype=torch.float32, device=Q.device)
-        mu = torch.tensor(float(mu), dtype=torch.float32, device=Q.device)
-        alpha = torch.tensor(float(alpha), dtype=torch.float32, device=Q.device)
-        gamma = torch.tensor(float(gamma), dtype=torch.float32, device=Q.device)
-        dt = torch.tensor(float(dt), dtype=torch.float32, device=Q.device)
+        delta = torch.tensor(float(delta), dtype=torch.float32, device=device)
+        b = torch.tensor(float(b), dtype=torch.float32, device=device)
+        mu = torch.tensor(float(mu), dtype=torch.float32, device=device)
+        alpha = torch.tensor(float(alpha), dtype=torch.float32, device=device)
+        gamma = torch.tensor(float(gamma), dtype=torch.float32, device=device)
+        dt = torch.tensor(float(dt), dtype=torch.float32, device=device)
         
         num_envs, num_legs_times2 = Q.shape
         num_legs = num_legs_times2 // 2
@@ -96,8 +97,8 @@ class VectorizedHopfOscillator:
         exp_neg = torch.exp(-b * z_all).float()
         exp_pos = torch.exp(b * z_all).float()
         
-        stance_denom = (dutycycle * T * (exp_neg + torch.tensor(1.0, dtype=torch.float32, device=Q.device))).float()
-        swing_denom = ((torch.tensor(1.0, dtype=torch.float32, device=Q.device) - dutycycle) * T * (exp_pos + torch.tensor(1.0, dtype=torch.float32, device=Q.device))).float()
+        stance_denom = (dutycycle * T * (exp_neg + torch.tensor(1.0, dtype=torch.float32, device=device))).float()
+        swing_denom = ((torch.tensor(1.0, dtype=torch.float32, device=device) - dutycycle) * T * (exp_pos + torch.tensor(1.0, dtype=torch.float32, device=device))).float()
         
         # FORCED float32 pi
         pi_tensor = torch.tensor(torch.pi, dtype=torch.float32, device=Q.device)
@@ -140,23 +141,23 @@ class VectorizedMotionPlanning:
         self.L1 = torch.tensor(float(L1), dtype=torch.float32)  # FORCED float32
         self.L2 = torch.tensor(float(L2), dtype=torch.float32)  # FORCED float32
         self.z_rest_foot = torch.tensor(float(z_rest_foot), dtype=torch.float32)  # FORCED float32
-
+        self.device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # FORCED float32 joint offsets
-        self.x_hipoffset = torch.tensor([JointOffsets[l]["x_offset"] for l in JointOffsets], dtype=torch.float32).float()
-        self.z_hipoffset = torch.tensor([JointOffsets[l]["z_offset"] for l in JointOffsets], dtype=torch.float32).float()
-        self.y_hipoffset = torch.tensor([JointOffsets[l]["y_offset"] for l in JointOffsets], dtype=torch.float32).float()
-        self.isRear = torch.tensor(["Back" in l for l in JointOffsets], dtype=torch.bool)
+        self.x_hipoffset = torch.tensor([JointOffsets[l]["x_offset"] for l in JointOffsets], dtype=torch.float32).float().to(self.device)
+        self.z_hipoffset = torch.tensor([JointOffsets[l]["z_offset"] for l in JointOffsets], dtype=torch.float32).float().to(self.device)
+        self.y_hipoffset = torch.tensor([JointOffsets[l]["y_offset"] for l in JointOffsets], dtype=torch.float32).float().to(self.device)
+        self.isRear = torch.tensor(["Back" in l for l in JointOffsets], dtype=torch.bool).to(self.device)
 
     def tensor_TrajectoryGenerator(self, x_hopf, z_hopf):
         # FORCE INPUTS TO float32
-        x_hopf = x_hopf.to(dtype=torch.float32).float()
-        z_hopf = z_hopf.to(dtype=torch.float32).float()
+        x_hopf = x_hopf.to(dtype=torch.float32).float().to(self.device)
+        z_hopf = z_hopf.to(dtype=torch.float32).float().to(self.device)
         
         num_envs, num_legs = x_hopf.shape
 
         # Phase - FORCED float32
         phase_rad = torch.atan2(z_hopf, x_hopf).float()
-        pi_tensor = torch.tensor(torch.pi, dtype=torch.float32, device=x_hopf.device)
+        pi_tensor = torch.tensor(torch.pi, dtype=torch.float32, device=self.device)
         phase_norm = ((phase_rad + pi_tensor) / (2 * pi_tensor)).float()
 
         # Broadcast gait params - ALL FORCED float32
@@ -173,13 +174,13 @@ class VectorizedMotionPlanning:
         dS = (yaw_rate * self.y_hipoffset.float().unsqueeze(0) * T).float()
         S = (S_body + dS).float()
         
-        two_pi = torch.tensor(2.0 * torch.pi, dtype=torch.float32, device=x_hopf.device)
-        x = (S/torch.tensor(2.0, dtype=torch.float32, device=x_hopf.device) * torch.cos(two_pi*phase_norm) + self.x_hipoffset.float().unsqueeze(0)).float()
+        two_pi = torch.tensor(2.0 * torch.pi, dtype=torch.float32, device=self.device)
+        x = (S/torch.tensor(2.0, dtype=torch.float32, device=self.device) * torch.cos(two_pi*phase_norm) + self.x_hipoffset.float().unsqueeze(0)).float()
         x = (x + (self.isRear.float().unsqueeze(0) * x_COMshift)).float()
 
         # Z trajectory - FORCED float32
-        half_tensor = torch.tensor(0.5, dtype=torch.float32, device=x_hopf.device)
-        one_tensor = torch.tensor(1.0, dtype=torch.float32, device=x_hopf.device)
+        half_tensor = torch.tensor(0.5, dtype=torch.float32, device=self.device)
+        one_tensor = torch.tensor(1.0, dtype=torch.float32, device=self.device)
         
         shifted_phase = ((phase_norm + half_tensor) % one_tensor).float()
         swing_mask = (shifted_phase < (one_tensor - dutycycle)).float()
@@ -200,17 +201,17 @@ class VectorizedMotionPlanning:
         r = torch.sqrt(x_local**2 + z_local**2).float()
         
         # FORCED float32 constants
-        epsilon = torch.tensor(1e-6, dtype=torch.float32, device=x_array.device)
+        epsilon = torch.tensor(1e-6, dtype=torch.float32, device=self.device)
         r_min = (torch.abs(self.L1.float() - self.L2.float()) + epsilon).float()
         r_max = (self.L1.float() + self.L2.float() - epsilon).float()
         r = torch.clamp(r, min=r_min, max=r_max).float()
 
         # FORCED float32 calculations
-        two_tensor = torch.tensor(2.0, dtype=torch.float32, device=x_array.device)
+        two_tensor = torch.tensor(2.0, dtype=torch.float32, device=self.device)
         p = ((self.L2.float()**2 - self.L1.float()**2 - r**2) / (two_tensor*self.L1.float()*r)).float()
         
-        neg_one = torch.tensor(-1.0, dtype=torch.float32, device=x_array.device)
-        pos_one = torch.tensor(1.0, dtype=torch.float32, device=x_array.device)
+        neg_one = torch.tensor(-1.0, dtype=torch.float32, device=self.device)
+        pos_one = torch.tensor(1.0, dtype=torch.float32, device=self.device)
         p = torch.clamp(p, min=neg_one, max=pos_one).float()
 
         theta_1 = (torch.arcsin(p) - torch.atan2(z_local, x_local)).float()
