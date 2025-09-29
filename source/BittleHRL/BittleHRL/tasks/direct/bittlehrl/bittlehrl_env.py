@@ -14,8 +14,14 @@ from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform
+from isaacsim.sensor.physics import IMUSensor
 
 from .bittlehrl_env_cfg import BittlehrlEnvCfg
+from Bittle_locomotion import gaitParams,HopfOscillator,MotionPlanning,connectionwieghtmatrixR
+from inversegait import JointOffsets, hiplength,kneelength
+import numpy as np
+from qt2euler import Quarternion2EulerAngles
+
 
 
 class BittlehrlEnv(DirectRLEnv):
@@ -23,12 +29,12 @@ class BittlehrlEnv(DirectRLEnv):
 
     def __init__(self, cfg: BittlehrlEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
-
-        self._cart_dof_idx, _ = self.robot.find_joints(self.cfg.cart_dof_name)
-        self._pole_dof_idx, _ = self.robot.find_joints(self.cfg.pole_dof_name)
-
+        self.joint_ids = list(range(len(self.robot.data.joint_pos)))
         self.joint_pos = self.robot.data.joint_pos
         self.joint_vel = self.robot.data.joint_vel
+        self.linearvelocity=self.robot.data.linearvelocity
+        self.orientation=self.robot.data.orientation
+
 
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot_cfg)
@@ -44,6 +50,11 @@ class BittlehrlEnv(DirectRLEnv):
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
+
+        #add IMU 
+        self.imu_bittle= IMUSensor(prim_path="/World/envs/env_.*/bittle/base_frame_link/mainboard_link/imu_link/Imu_Sensor", name='imu',orientation=np.array([1,0,0,0]),frequency=1/0.01, linear_acceleration_filter_size=10, angular_velocity_filter_size=10,orientation_filter_size=10)
+        self.imu_bittle.initialize()
+
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
@@ -66,7 +77,7 @@ class BittlehrlEnv(DirectRLEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         total_reward = compute_rewards(
-            self.cfg.rew_scale_alive,
+            self.cfg.s,
             self.cfg.rew_scale_terminated,
             self.cfg.rew_scale_pole_pos,
             self.cfg.rew_scale_cart_vel,
