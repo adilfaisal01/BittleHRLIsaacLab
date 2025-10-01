@@ -29,26 +29,15 @@ BITTLE_ASSET_DIR = Path(__file__).resolve().parent
 @configclass
 class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== ENV / TIMING ======
-    decimation = 20, #number of control steps between policy updates, policy runs at 5 Hz, simulation at 100 Hz
+    decimation = 1 #number of control steps between policy updates, policy runs at 5 Hz, simulation at 100 Hz
     episode_length_s = 20
-    action_space = spaces.Box(low= 0,high=1,dtype=np.float32),shape=(3,) #normalized actions
-    n_dim_obs=8+8+3+3
-    # picked from the official Bittle documentation, usd file was adjusted to match
-    jointangleslimit=np.deg2rad(125)
-    jointvellimit=np.deg2rad(500)
-    eulerlimit=np.pi
-    linearvelocitylimit=100 #m/s
-
-    # for the rest of the observations, they will be bounded to -np.inf and np.inf
-    states_low=np.concatenate([-jointangleslimit*np.ones(8),-jointvellimit*np.ones(8),-eulerlimit*np.ones(3),-linearvelocitylimit*np.ones(3)]).astype(np.float32)
-    states_high=np.concatenate([jointangleslimit*np.ones(8),jointvellimit*np.ones(8),eulerlimit*np.ones(3),linearvelocitylimit*np.ones(3)]).astype(np.float32)
-
+    action_space = spaces.Box(low= 0,high=1,dtype=np.float32,shape=(3,)) #normalized actions
+    # 1) your basic scalar limits
     
-    observation_space = spaces.Box(low=states_low,high=states_high,shape=(n_dim_obs,),dtype=np.float32)
-    state_space = 0
-    action_scale = np.array([150,0.667,0.46]) #forward velocity, period, duty cycle respectively
-    action_bias=np.array([50,0.33,0.5])
+    observation_space = 23
 
+    state_space = 0
+    
     # ====== SIMULATION ======
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 100,
@@ -67,7 +56,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     bittle = ArticulationCfg(
         prim_path="/World/envs/env_.*/bittle",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{BITTLE_ASSET_DIR}/assets/Bittle_URDF/bittle/bittle.usd",
+            usd_path=f"{BITTLE_ASSET_DIR}/Bittle_URDF/bittle/bittle.usd",
             activate_contact_sensors=True,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
@@ -110,8 +99,8 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     
     #sensors
 
-    imu=ImuCfg(
-        prim_path="/World/envs/env_.*/bittle/base_frame_link/mainboard_link/imu_link/IMU_Sensor",debug_vis=True)
+    # imu=ImuCfg(
+    #     prim_path="/World/envs/env_.*/bittle/base_frame_link/mainboard_link/imu_link/IMU_Sensor",debug_vis=True)
 
 
     # ====== FRAME TRANSFORMER (for feet) ======
@@ -133,13 +122,14 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     # )
 
     # ====== REWARD WEIGHTS (from GymWrapper) =====
-    rew_vx=-1
-    rew_vy=+5
-    rew_vz=-1
-    rew_joint_energy=-0.01
-    rew_roll=-0.5
-    rew_pitch=-0.5
-    rew_dist_goal=-4 
+    
+    # micro rewrd terms, every action cycle these rewards are taken and measured
+    rew_joint_vel=-0.001
+    rew_roll=-0.05
+    rew_pitch=-0.05
+
+    # macro rewards, collected every RL step
+    rew_dist_goal=4 
     goal_reward=100
     tipped_penalty=-50
 
