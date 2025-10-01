@@ -41,11 +41,7 @@ class BittlehrlEnv(DirectRLEnv):
         self.sample_goals(first_time=True)
 
         # reward bookkeeping
-        self.prev_actions = torch.zeros(
-            (self.scene.num_envs, len(self.joint_pos)), device=self.device
-        )
         self.prev_distance = torch.zeros(self.scene.num_envs, device=self.device)
-        self.was_tipped_last = torch.zeros(self.scene.num_envs, dtype=torch.bool, device=self.device)
 
         # spawn state tensors (persistent across resets)
         self.spawn_root_states = self.robot.data.default_root_state.clone()
@@ -70,9 +66,6 @@ class BittlehrlEnv(DirectRLEnv):
             Q[:, 2*i+1] = torch.sin(self.trot_phase_difference[i])
 
         self.R_trot = tensor_connection_weight_matrix_R(self.trot_phase_difference)
-        self.time=0 #time of the simulation
-        self.highlevelfrequency=0.2 #decision every 5 seconds
-        self.HLsteps=int(0.2/0.01)
         self.joint_index_map =   { 
                                 "Right Front": [3, 7],
                                 "Left Front": [1, 5],
@@ -143,6 +136,8 @@ class BittlehrlEnv(DirectRLEnv):
         self.imu=Imu(self.cfg.imu)
         self.scene.sensors["Imu"]=self.imu
 
+## physics hlpers for custom locomotion engine
+
     def _cpg_update(self):
         self.Q=self.hopfoscillator.tensor_hopf_cpg_dot(self.Q,R=self.R_trot,delta=0.01,b=0.50,mu=1,alpha=10,gamma=10,dt=self.cfg.sim.dt)
         return self.Q
@@ -156,7 +151,7 @@ class BittlehrlEnv(DirectRLEnv):
         hip_angle,knee_angle=self.motionplanner.tensor_InverseKinematics(x_traj,z_traj)
 
         return hip_angle,knee_angle #size (num_envs,8)
-
+## action step,s in pre-physics step, the actions dictated by the RL are cached
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         
         # decoding normalized actions into convertable values and updating the dataclass
@@ -168,22 +163,27 @@ class BittlehrlEnv(DirectRLEnv):
         self.gaitcommands.T=gaitT
         self.gaitcommands.dutycycle=dc
 
-        self.hopfoscillator=VectorizedHopfOscillator(gait_pattern=self.gaitcommands) #update the hopf oscillator
-        #applying low level control
+        self.hopfoscillator=VectorizedHopfOscillator(gait_pattern=self.gaitcommands) #update the hopf oscillator as part of the caching
+        self.microrewards=0 #each RL steps all the low level rewards are set to zero, so the microrewards restart accumulation
+       
+## actual action being processed and applied to the simulated robot
+
+    def _apply_action(self) -> None:
         self.Q=self._cpg_update()
         hip_angle,knee_angle=self._computingjointtragets()
         self.joint_targets=torch.stack(hip_angle,knee_angle,dim=2)
         self.joint_targets=self.joint_targets.view(self.scene.num_envs,-1)
 
-        return self.joint_targets
-
-    def _apply_action(self) -> None:
         self.robot.set_joint_position_target(self.joint_targets,joint_ids=self._actuated_ids) #apply action to relevant joints and the PD controller is included (fix needed)
+
+        roll,pitch,_=self._extract_euler_angles() #3 separate angles
+
+        self.microrewards=self.microrewards+self.cfg.rew_joint_vel*torch.sum(self.joint_vel**2)+self.cfg.rew_roll*roll+self.cfg.rew_pitch*pitch #per action step, the low level rewards are added
         
     def _get_observations(self) -> dict:
         
         linear_velocity=self.robot.data.root_lin_vel_b
-        x_vel,y_vel,z_vel=linear_velocity #x,y,z velocities
+        x_vel,y_vel,z_vel=torch.unbind(linear_velocity,dim=1) #x,y,z velocities
         roll,pitch,yaw=self._extract_euler_angles() #3 separate angles
         pos=self.robot.data.root_link_pos_w #position of the robot in the world, where is the robot in the world
         obs = torch.cat(
@@ -203,53 +203,99 @@ class BittlehrlEnv(DirectRLEnv):
         observations = {"policy": obs}
         return observations
 
+# ew_vx=-1
+#     rew_vy=+5
+#     rew_vz=-1
+#     rew_joint_energy=-0.01
+#     rew_roll=-0.5
+#     rew_pitch=-0.5
+#     rew_dist_goal=-4 
+#     goal_reward=500
+#     tipped_penalty=-500
+
     def _get_rewards(self) -> torch.Tensor:
-        total_reward = compute_rewards(
-            self.cfg.s,
-            self.cfg.rew_scale_terminated,
-            self.cfg.rew_scale_pole_pos,
-            self.cfg.rew_scale_cart_vel,
-            self.cfg.rew_scale_pole_vel,
-            self.joint_pos[:, self._pole_dof_idx[0]],
-            self.joint_vel[:, self._pole_dof_idx[0]],
-            self.joint_pos[:, self._cart_dof_idx[0]],
-            self.joint_vel[:, self._cart_dof_idx[0]],
-            self.reset_terminated,
+        pos=self.robot.data.root_link_pos_w
+        roll,pitch,yaw=self._extract_euler_angles()
+        linear_velocity=self.robot.data.root_lin_vel_b
+
+        x_vel,y_vel,z_vel=linear_velocity[:,0],linear_velocity[:,1],linear_velocity[:,2] #x,y,z velocities
+
+        distance_from_goal=torch.norm(pos[:,:2]-self.goal_points[:,:2],dim=-1) #find the distance from goal, every 5 seconds
+        self.prev_distance=distance_from_goal
+
+        at_goal= (distance_from_goal < 0.05) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2)
+
+        is_tipped=torch.abs(roll)>0.8 | torch.abs(pitch)>0.8
+        goal_arrival_bots=torch.where(at_goal,torch.tensor(self.cfg.goal_reward,device=self.device),torch.tensor(0.0,device=self.device))
+        tipped_bots=torch.where(is_tipped,torch.tensor(self.cfg.tipped_penalty,device=self.device),torch.tensor(0.0,device=self.device))
+
+        average_micro_reward=self.microrewards/self.cfg.decimation #average microrewards per HL cycle
+
+
+        reward=(
+            self.cfg.rew_vx*x_vel+
+            self.cfg.rew_vy*y_vel+
+            self.cfg.rew_vz*z_vel+
+            goal_arrival_bots+
+            tipped_bots+
+            average_micro_reward
         )
-        return total_reward
+        return reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        self.joint_pos = self.robot.data.joint_pos
-        self.joint_vel = self.robot.data.joint_vel
+        
+        pos=self.robot.root_link_pos_w
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-        out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
-        out_of_bounds = out_of_bounds | torch.any(torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2, dim=1)
-        return out_of_bounds, time_out
+        roll, pitch = self._extract_euler_angles()
+        dist = torch.norm(self.goal_points[:, :2] - pos[:, :2], dim=-1)
+        success = (dist < 0.05) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2) #find the successful robots, if succeeded, no need to continue
+        absolute_tipover=torch.abs(roll)>=1.57 or torch.abs(pitch)>=1.57 # if the robot tips over by 90 degree, end it
+
+        if success.any():
+            self.sample_goals(env_ids=torch.nonzero(success).squeeze(-1))
+
+        return  absolute_tipover | success, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
         super()._reset_idx(env_ids)
 
-        joint_pos = self.robot.data.default_joint_pos[env_ids]
-        joint_pos[:, self._pole_dof_idx] += sample_uniform(
-            self.cfg.initial_pole_angle_range[0] * math.pi,
-            self.cfg.initial_pole_angle_range[1] * math.pi,
-            joint_pos[:, self._pole_dof_idx].shape,
-            joint_pos.device,
-        )
-        joint_vel = self.robot.data.default_joint_vel[env_ids]
+        # Check which envs succeeded
+        pos = self.robot.data.root_link_pos_w[env_ids]
+        roll, pitch = self._extract_roll_pitch()
+        dist = torch.norm(self.goal_points[env_ids, :2] - pos[:, :2], dim=-1)
+        success = (dist < 0.1) & (torch.abs(roll[env_ids]) < 0.3) & (torch.abs(pitch[env_ids]) < 0.3) #create mask here for success, filtering
+        succ_ids = env_ids[success]
 
-        default_root_state = self.robot.data.default_root_state[env_ids]
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        if self.first_reset or len(succ_ids) > 0:
+            
+            if self.first_reset:
+                succ_ids = env_ids
+                self.first_reset = False
+            # Pull defaults for successful envs
+            joint_pos = self.robot.data.default_joint_pos[succ_ids]
+            joint_vel = self.robot.data.default_joint_vel[succ_ids]
+            root_state = self.robot.data.default_root_state[succ_ids].clone()
 
-        self.joint_pos[env_ids] = joint_pos
-        self.joint_vel[env_ids] = joint_vel
+            # Sample XY from training ground and enforce configured Z height
+            spawn_points = self.sample_points(succ_ids, z_offset=0.0)
+            root_state[:, 0:3] = spawn_points
+             # Save updated spawn state for next reset
+            self.spawn_root_states[succ_ids] = root_state
+            self.spawn_joint_pos[succ_ids] = joint_pos
+            self.spawn_joint_vel[succ_ids] = joint_vel
 
-        self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
+        # Reapply cached spawn state (works for both success & fail cases)
+        root_state = self.spawn_root_states[env_ids]
+        joint_pos = self.spawn_joint_pos[env_ids]
+        joint_vel = self.spawn_joint_vel[env_ids]
+
+        self.robot.write_root_pose_to_sim(root_state[:, :7], env_ids)
+        self.robot.write_root_velocity_to_sim(root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+
 
     def _extract_euler_angles(self):
         quat = self.robot.data.root_link_quat_w
@@ -265,23 +311,3 @@ class BittlehrlEnv(DirectRLEnv):
         return roll, pitch,yaw
 
 
-@torch.jit.script
-def compute_rewards(
-    rew_scale_alive: float,
-    rew_scale_terminated: float,
-    rew_scale_pole_pos: float,
-    rew_scale_cart_vel: float,
-    rew_scale_pole_vel: float,
-    pole_pos: torch.Tensor,
-    pole_vel: torch.Tensor,
-    cart_pos: torch.Tensor,
-    cart_vel: torch.Tensor,
-    reset_terminated: torch.Tensor,
-):
-    rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
-    rew_termination = rew_scale_terminated * reset_terminated.float()
-    rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
-    rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
-    rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
-    total_reward = rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel
-    return total_reward

@@ -29,7 +29,7 @@ BITTLE_ASSET_DIR = Path(__file__).resolve().parent
 @configclass
 class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== ENV / TIMING ======
-    decimation = 2
+    decimation = 20, #number of control steps between policy updates, policy runs at 5 Hz, simulation at 100 Hz
     episode_length_s = 20
     action_space = spaces.Box(low= 0,high=1,dtype=np.float32),shape=(3,) #normalized actions
     n_dim_obs=8+8+3+3
@@ -139,7 +139,9 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     rew_joint_energy=-0.01
     rew_roll=-0.5
     rew_pitch=-0.5
-
+    rew_dist_goal=-4 
+    goal_reward=100
+    tipped_penalty=-50
 
     # ====== RAY CASTER (pelvis → ground) ======
     # ray_caster: RayCasterCfg = RayCasterCfg(
