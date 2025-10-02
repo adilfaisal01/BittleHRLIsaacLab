@@ -263,7 +263,7 @@ class BittlehrlEnv(DirectRLEnv):
 
 
         reward=(
-            self.prev_distance*self.cfg.rew_dist_goal+
+           distance_from_goal*self.cfg.rew_dist_goal+
             goal_arrival_bots+
             tipped_bots+
             self.microrewards
