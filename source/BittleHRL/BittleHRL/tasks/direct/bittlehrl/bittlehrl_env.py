@@ -213,7 +213,7 @@ class BittlehrlEnv(DirectRLEnv):
 
         roll,pitch,_=self._extract_euler_angles() #3 separate angles
 
-        self.microrewards=self.microrewards+self.cfg.rew_joint_vel*torch.sum(self.joint_vel**2)+self.cfg.rew_roll*roll+self.cfg.rew_pitch*pitch #per action step, the low level rewards are added
+        self.microrewards=self.microrewards+self.cfg.rew_joint_vel*torch.sum(self.joint_vel**2)+self.cfg.rew_roll*torch.abs(roll)+self.cfg.rew_pitch*torch.abs(pitch) #per action step, the low level rewards are added
         
     def _get_observations(self) -> dict:
         
