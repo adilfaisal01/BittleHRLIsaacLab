@@ -294,7 +294,7 @@ class BittlehrlEnv(DirectRLEnv):
         pos = self.robot.data.root_link_pos_w[env_ids]
         roll, pitch,_ = self._extract_euler_angles()
         dist = torch.norm(self.goal_points[env_ids, :2] - pos[:, :2], dim=-1)
-        success = (dist < 0.1) & (torch.abs(roll[env_ids]) < 0.3) & (torch.abs(pitch[env_ids]) < 0.3) #create mask here for success, filtering
+        success = (dist < 0.1) & (torch.abs(roll[env_ids]) < 0.3) & (torch.abs(pitch[env_ids]) < 0.2) #create mask here for success, filtering
         succ_ids = env_ids[success]
 
         if self.first_reset or len(succ_ids) > 0:
