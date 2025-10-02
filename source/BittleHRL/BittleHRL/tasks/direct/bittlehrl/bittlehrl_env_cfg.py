@@ -129,7 +129,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     rew_pitch=-0.05
 
     # macro rewards, collected every RL step
-    rew_dist_goal=4 
+    rew_dist_goal=-4 
     goal_reward=100
     tipped_penalty=-50
 
