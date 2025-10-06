@@ -273,7 +273,7 @@
       <parent link="left-back-shoulder-link"/>
       <child link="left-back-knee-link"/>
       <axis xyz="0 0 1.0"/>
-      <limit lower="-2.182" upper="2.182" effort="1.0" velocity="1.5708"/>
+      <limit lower="-1.22173" upper="1.48353" effort="1.0" velocity="1.5708"/>
     </joint>
 
     <joint name="left-back-shoulder-joint" type="revolute">
@@ -281,7 +281,7 @@
       <parent link="base-frame-link"/>
       <child link="left-back-shoulder-link"/>
       <axis xyz="0 0 1.0"/>
-      <limit lower="-2.182" upper="2.182" effort="1.0" velocity="1.5708"/>
+      <limit lower="-1.5708" upper="1.22173" effort="1.0" velocity="1.5708"/>
     </joint>
 
     <joint name="left-front-knee-joint" type="revolute">
@@ -289,7 +289,7 @@
       <parent link="left-front-shoulder-link"/>
       <child link="left-front-knee-link"/>
       <axis xyz="0 0 1.0"/>
-      <limit lower="-2.182" upper="2.182" effort="1.0" velocity="1.5708"/>
+      <limit lower="-1.22173" upper="1.48353" effort="1.0" velocity="1.5708"/>
     </joint>
 
     <joint name="left-front-shoulder-joint" type="revolute">
@@ -297,7 +297,7 @@
       <parent link="base-frame-link"/>
       <child link="left-front-shoulder-link"/>
       <axis xyz="0 0 1.0"/>
-      <limit lower="-2.182" upper="2.182" effort="1.0" velocity="1.5708"/>
+      <limit lower="-1.5708" upper="1.22173" effort="1.0" velocity="1.5708"/>
     </joint>
 
     <joint name="mainboard_joint" type="fixed">
@@ -311,7 +311,7 @@
       <parent link="right-back-shoulder-link"/>
       <child link="right-back-knee-link"/>
       <axis xyz="0 0 1.0"/>
-      <limit lower="-2.182" upper="2.182" effort="1.0" velocity="1.5708"/>
+      <limit lower="-1.22173" upper="1.48353" effort="1.0" velocity="1.5708"/>
     </joint>
 
     <joint name="right-back-shoulder-joint" type="revolute">
@@ -327,7 +327,7 @@
       <parent link="right-front-shoulder-link"/>
       <child link="right-front-knee-link"/>
       <axis xyz="0 0 1.0"/>
-      <limit lower="-2.182" upper="2.182" effort="1.0" velocity="1.5708"/>
+      <limit lower="-1.22173" upper="1.48353" effort="1.0" velocity="1.5708"/>
     </joint>
 
     <joint name="right-front-shoulder-joint" type="revolute">
@@ -335,7 +335,7 @@
       <parent link="base-frame-link"/>
       <child link="right-front-shoulder-link"/>
       <axis xyz="0 0 1.0"/>
-      <limit lower="-2.182" upper="2.182" effort="1.0" velocity="1.5708"/>
+      <limit lower="-1.5708" upper="1.22173" effort="1.0" velocity="1.5708"/>
     </joint>
 
   </robot>
