@@ -40,7 +40,7 @@ class BittlehrlEnv(DirectRLEnv):
         # action_bias=np.array([50,0.33,0.5],dtype=np.float32)
 
         self.act_scale=torch.tensor([150,0.667,0.46],dtype=torch.float32,device=self.device) #action scale
-        self.act_bias=torch.tensor([50,0.33,0.3],dtype=torch.float32,device=self.device) #action bias
+        self.act_bias=torch.tensor([100,0.33,0.5],dtype=torch.float32,device=self.device) #action bias
 
         # per-env goal points (xyz)
         self.goal_points = torch.zeros((self.scene.num_envs, 3), device=self.device)
@@ -58,7 +58,7 @@ class BittlehrlEnv(DirectRLEnv):
 
         self.gaitcommands=tensorgaitParams(H=torch.full((self.scene.num_envs,),5.678),x_COMshift=torch.full((self.scene.num_envs,),0),robotheight=torch.full((self.scene.num_envs,),20),
                                        yaw_rate=torch.zeros(self.scene.num_envs),
-                                       forwardvel=torch.full((self.scene.num_envs,),50),
+                                       forwardvel=torch.full((self.scene.num_envs,),0),
                                        dutycycle=torch.full((self.scene.num_envs,),0.0),
                                        T=torch.full((self.scene.num_envs,),0.0))
         
@@ -172,7 +172,7 @@ class BittlehrlEnv(DirectRLEnv):
 ## physics hlpers for custom locomotion engine
 
     def _cpg_update(self):
-        self.Q=self.hopfoscillator.tensor_hopf_cpg_dot(self.Q,R=self.R_trot,delta=0.01,b=0.50,mu=1,alpha=10,gamma=10,dt=self.cfg.sim.dt)
+        self.Q=self.hopfoscillator.tensor_hopf_cpg_dot(self.Q,R=self.R_trot,delta=0.01,b=0.50,mu=1,alpha=1,gamma=1,dt=self.cfg.sim.dt)
         return self.Q
     
     def _computingjointtragets(self):
@@ -188,32 +188,38 @@ class BittlehrlEnv(DirectRLEnv):
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         
         # decoding normalized actions into convertable values and updating the dataclass
-        actions_true=actions*self.act_scale.unsqueeze(0)+self.act_bias.unsqueeze(0)
+        actions_clamped=torch.sigmoid(actions)
+        actions_true=actions_clamped*self.act_scale.unsqueeze(0)+self.act_bias.unsqueeze(0)
         fv=actions_true[:,0]
         gaitT=actions_true[:,1]
         dc=actions_true[:,2]
-        self.gaitcommands.forwardvel=fv
-        self.gaitcommands.T=gaitT
-        self.gaitcommands.dutycycle=dc
-
+        self.gaitcommands.forwardvel=torch.clamp(fv,min=100,max=250)
+        self.gaitcommands.T=torch.clamp(gaitT,min=0.33,max=1)
+        self.gaitcommands.dutycycle=torch.clamp(dc,min=0.5,max=0.9)
+        # print(f'forwardvel :{fv}',f'T: {gaitT}',f'duty cycle: {dc}')
+        # print(f'Normalized actions:{actions}, Clamped actions={actions_clamped}')
         self.hopfoscillator=VectorizedHopfOscillator(gait_pattern=self.gaitcommands) #update the hopf oscillator as part of the caching
         self.microrewards=torch.zeros(self.scene.num_envs,device=self.device)  #each RL steps all the low level rewards are set to zero, so the microrewards restart accumulation
        
 ## actual action being processed and applied to the simulated robot
 
     def _apply_action(self) -> None:
-        
-        self.Q=self._cpg_update()
         hip_angle,knee_angle=self._computingjointtragets()
+        # print("Q ", self.Q)
+        # print("Hip Angle ", hip_angle,"\n","Knee Angle ",knee_angle, "\n")
         self.joint_targets=torch.stack((hip_angle,knee_angle),dim=2)
         self.joint_targets=self.joint_targets.view(self.scene.num_envs,-1)
         self.joint_targets = self.joint_targets * self.joint_signs
-        print(self.joint_targets)
+        # print("joint target ", self.joint_targets)
+        
         self.robot.set_joint_position_target(self.joint_targets, joint_ids=None) #apply action to relevant joints and the PD controller is included (fix needed)
+
+        # print(f'Actual joint position: {self.joint_pos}')
+        # print(f'Robot Positions (m): {self.robot.data.root_link_pos_w}')
 
         roll,pitch,_=self._extract_euler_angles() #3 separate angles
 
-        self.microrewards=self.microrewards+self.cfg.rew_joint_vel*torch.sum(self.joint_vel**2)+self.cfg.rew_roll*torch.abs(roll)+self.cfg.rew_pitch*torch.abs(pitch) #per action step, the low level rewards are added
+        self.microrewards=self.microrewards+self.cfg.rew_roll*torch.abs(roll)+self.cfg.rew_pitch*torch.abs(pitch) #per action step, the low level rewards are added
         
     def _get_observations(self) -> dict:
         
@@ -232,6 +238,7 @@ class BittlehrlEnv(DirectRLEnv):
                 yaw.unsqueeze(-1),
                 self.joint_vel,
                 self.joint_pos
+                
             ),
             dim=-1,
         )
@@ -268,6 +275,8 @@ class BittlehrlEnv(DirectRLEnv):
             tipped_bots+
             self.microrewards
         )
+
+        print(f'Microrewards: {self.microrewards}, Macrorewards; {reward}, goal reward: {distance_from_goal*self.cfg.rew_dist_goal}')
         return reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
@@ -310,7 +319,7 @@ class BittlehrlEnv(DirectRLEnv):
             # Sample XY from training ground and enforce configured Z height
             spawn_points = self.sample_points(succ_ids, z_offset=1)
             root_state[:, 0:2] = spawn_points[:,0:2]
-            root_state[:,2] = 3
+            root_state[:,2] = 0.1
              # Save updated spawn state for next reset
             self.spawn_root_states[succ_ids] = root_state
             self.spawn_joint_pos[succ_ids] = joint_pos

@@ -94,8 +94,8 @@ class VectorizedHopfOscillator:
         T = self.gait_pattern.T.float().unsqueeze(1)
 
         # FORCED float32 exponentials
-        exp_neg = torch.exp(-b * z_all).float()
-        exp_pos = torch.exp(b * z_all).float()
+        exp_neg = torch.exp(-b * z_all_clamped).float()
+        exp_pos = torch.exp(b * z_all_clamped).float()
         
         stance_denom = (dutycycle * T * (exp_neg + torch.tensor(1.0, dtype=torch.float32, device=device))).float()
         swing_denom = ((torch.tensor(1.0, dtype=torch.float32, device=device) - dutycycle) * T * (exp_pos + torch.tensor(1.0, dtype=torch.float32, device=device))).float()
@@ -116,7 +116,7 @@ class VectorizedHopfOscillator:
         A[:, :, 1, 0] = omega.float()
 
         # FORCED float32 q vector
-        q = torch.stack([x_all.float(), z_all.float()], dim=-1).unsqueeze(-1).float()
+        q = torch.stack([x_all_clamped.float(), z_all_clamped.float()], dim=-1).unsqueeze(-1).float()
         
         # THE CRITICAL MATMUL - EVERYTHING IS DEFINITELY float32
         q_dot_first_term = torch.matmul(A.float(), q.float()).squeeze(-1).float()
@@ -131,8 +131,8 @@ class VectorizedHopfOscillator:
         q_dot += coupling_term
 
         # Final result - FORCED float32
-        Q_new = (Q.float() + q_dot.float() * dt.float()).float()
-        return Q_new
+        Q= (Q.float() + q_dot.float() * dt.float()).float()
+        return Q
 
 
 class VectorizedMotionPlanning:

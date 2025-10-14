@@ -29,25 +29,25 @@ BITTLE_ASSET_DIR = Path(__file__).resolve().parent
 @configclass
 class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== ENV / TIMING ======
-    decimation = 1 #number of control steps between policy updates, policy runs at 5 Hz, simulation at 100 Hz
+    decimation = 20 #number of control steps between policy updates, policy runs at 5 Hz, simulation at 100 Hz
     episode_length_s = 20
     action_space = spaces.Box(low= 0,high=1,dtype=np.float32,shape=(3,)) #normalized actions
     # 1) your basic scalar limits
     
-    observation_space = 23
+    observation_space = 25
 
     state_space = 0
     
     # ====== SIMULATION ======
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 100,
-        render_interval=decimation,
+        render_interval=1,
         device="cuda",
     )
 
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=1,
-        env_spacing=10.0,
+        num_envs=8,
+        env_spacing=20.0,
         replicate_physics=True,
         filter_collisions=True,
     )
@@ -90,8 +90,8 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
                 joint_names_expr=["left_.*", "right_.*"],
                 effort_limit_sim=120.0,
                 velocity_limit_sim=20.0,
-                stiffness=60.0,
-                damping=3.0,
+                stiffness=30.0,
+                damping=2.0,
             ),
         },
     )
@@ -130,8 +130,8 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
 
     # macro rewards, collected every RL step
     rew_dist_goal=-4 
-    goal_reward=100
-    tipped_penalty=-50
+    goal_reward=1000
+    tipped_penalty=-5
 
     # ====== RAY CASTER (pelvis → ground) ======
     # ray_caster: RayCasterCfg = RayCasterCfg(
