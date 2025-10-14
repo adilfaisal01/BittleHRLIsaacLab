@@ -21,6 +21,7 @@ from .inversegait import JointOffsets, hiplength,kneelength
 from .vectorizedBittle_Locomotion import tensor_connection_weight_matrix_R,tensorgaitParams,VectorizedHopfOscillator,VectorizedMotionPlanning
 import numpy as np
 
+## todo: 1. add previous actions to obs space, add smoothness, 2. add 
 
 class BittlehrlEnv(DirectRLEnv):
     cfg: BittlehrlEnvCfg
@@ -39,7 +40,7 @@ class BittlehrlEnv(DirectRLEnv):
         # action_scale = np.array([150,0.667,0.46],dtype=np.float32) #forward velocity, period, duty cycle respectively
         # action_bias=np.array([50,0.33,0.5],dtype=np.float32)
 
-        self.act_scale=torch.tensor([150,0.667,0.46],dtype=torch.float32,device=self.device) #action scale
+        self.act_scale=torch.tensor([250,0.667,0.46],dtype=torch.float32,device=self.device) #action scale
         self.act_bias=torch.tensor([100,0.33,0.5],dtype=torch.float32,device=self.device) #action bias
 
         # per-env goal points (xyz)
@@ -56,7 +57,7 @@ class BittlehrlEnv(DirectRLEnv):
 
         self.first_reset = True
 
-        self.gaitcommands=tensorgaitParams(H=torch.full((self.scene.num_envs,),5.678),x_COMshift=torch.full((self.scene.num_envs,),0),robotheight=torch.full((self.scene.num_envs,),20),
+        self.gaitcommands=tensorgaitParams(H=torch.full((self.scene.num_envs,),5.678),x_COMshift=torch.full((self.scene.num_envs,),-10),robotheight=torch.full((self.scene.num_envs,),20),
                                        yaw_rate=torch.zeros(self.scene.num_envs),
                                        forwardvel=torch.full((self.scene.num_envs,),0),
                                        dutycycle=torch.full((self.scene.num_envs,),0.0),
@@ -109,16 +110,16 @@ class BittlehrlEnv(DirectRLEnv):
 # point sampling #
 
     def sample_points(self, env_ids: torch.Tensor, z_offset: float = 1) -> torch.Tensor:
-        origins = self.scene.env_origins[env_ids]
+        origins = self.robot.data.root_link_pos_w
         half_size = self.cfg.scene.env_spacing / 2.0
         margin = 0.5
 
         x = origins[:, 0]
-        # y_min = origins[:, 1] - half_size + margin
-        y_max = origins[:, 1] + half_size - margin
-
-        y = sample_uniform(0.1, y_max, (len(env_ids),), device=self.device)
+        y_min = origins[:, 1] +0.75
+        y_max = origins[:, 1] + 1.5
+        y = sample_uniform(y_min, y_max, (len(env_ids),), device=self.device)
         z = origins[:, 2] + z_offset
+        # print(f'GP: {y}')
 
         return torch.stack([x, y, z], dim=-1)
 
@@ -200,6 +201,7 @@ class BittlehrlEnv(DirectRLEnv):
         # print(f'Normalized actions:{actions}, Clamped actions={actions_clamped}')
         self.hopfoscillator=VectorizedHopfOscillator(gait_pattern=self.gaitcommands) #update the hopf oscillator as part of the caching
         self.microrewards=torch.zeros(self.scene.num_envs,device=self.device)  #each RL steps all the low level rewards are set to zero, so the microrewards restart accumulation
+        print(f'true actions: {actions_true}')
        
 ## actual action being processed and applied to the simulated robot
 
@@ -218,8 +220,18 @@ class BittlehrlEnv(DirectRLEnv):
         # print(f'Robot Positions (m): {self.robot.data.root_link_pos_w}')
 
         roll,pitch,_=self._extract_euler_angles() #3 separate angles
+        sum_torques=torch.sum(torch.square(self.robot.data.applied_torque),dim=1)
+        height_rob=self.robot.data.root_link_pos_w[:,2]
 
-        self.microrewards=self.microrewards+self.cfg.rew_roll*torch.abs(roll)+self.cfg.rew_pitch*torch.abs(pitch) #per action step, the low level rewards are added
+        roll_rate=self.robot.data.root_ang_vel_b[:,0]
+        pitch_rate=self.robot.data.root_ang_vel_b[:,1]
+        self.microrewards=0.90*self.microrewards+(self.cfg.rew_roll*torch.abs(roll)+
+                                                  self.cfg.rew_pitch*torch.abs(pitch)+
+                                                  self.cfg.rew_torques*sum_torques+
+                                                  self.cfg.rew_height*height_rob+
+                                                  self.cfg.rew_rollrate*torch.abs(roll_rate)+
+                                                  self.cfg.rew_pitchrate*torch.abs(pitch_rate)+
+                                                  self.cfg.rew_height*height_rob) #per action step, the low level rewards are added
         
     def _get_observations(self) -> dict:
         
@@ -237,7 +249,8 @@ class BittlehrlEnv(DirectRLEnv):
                 pitch.unsqueeze(-1),
                 yaw.unsqueeze(-1),
                 self.joint_vel,
-                self.joint_pos
+                self.joint_pos,
+            
                 
             ),
             dim=-1,
@@ -257,26 +270,30 @@ class BittlehrlEnv(DirectRLEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         pos=self.robot.data.root_link_pos_w
+        # print(f'robot position :{pos}')
         roll,pitch,yaw=self._extract_euler_angles()
-        distance_from_goal=torch.norm(pos[:,:2]-self.goal_points[:,:2],dim=-1) #find the distance from goal, every 5 seconds
+        distance_from_goal=torch.norm(self.goal_points[:, 1] - pos[:, 1], dim=-1) #find the distance from goal, every 5 seconds
         self.prev_distance=distance_from_goal
 
-        at_goal= (distance_from_goal < 0.05) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2)
+        at_goal= (distance_from_goal < 0.10) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2)
 
         is_tipped=(torch.abs(roll)>0.8) | (torch.abs(pitch)>0.8)
+        near_goal=(distance_from_goal < 0.50) & (distance_from_goal >= 0.20)
         goal_arrival_bots=torch.where(at_goal,torch.tensor(self.cfg.goal_reward,device=self.device),torch.tensor(0.0,device=self.device))
         tipped_bots=torch.where(is_tipped,torch.tensor(self.cfg.tipped_penalty,device=self.device),torch.tensor(0.0,device=self.device))
+        near_goal_bots=torch.where(near_goal,torch.tensor(self.cfg.near_goal_reward,device=self.device),torch.tensor(0.0,device=self.device))
 
-
+        print(f'distance from goal:{distance_from_goal}')
+        # print(f'Microrewards: {self.microrewards}, Near goal reward: {near_goal_bots}, At goal reward: {goal_arrival_bots}')
 
         reward=(
            distance_from_goal*self.cfg.rew_dist_goal+
             goal_arrival_bots+
             tipped_bots+
+            near_goal_bots+
             self.microrewards
         )
 
-        print(f'Microrewards: {self.microrewards}, Macrorewards; {reward}, goal reward: {distance_from_goal*self.cfg.rew_dist_goal}')
         return reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
@@ -285,12 +302,14 @@ class BittlehrlEnv(DirectRLEnv):
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         roll, pitch,_ = self._extract_euler_angles()
-        dist = torch.norm(self.goal_points[:, :2] - pos[:, :2], dim=-1)
-        success = (dist < 0.05) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2) #find the successful robots, if succeeded, no need to continue
-        absolute_tipover=(torch.abs(roll)>1.57) | (torch.abs(pitch)>1.57) # if the robot tips over by 90 degree, end it
+        dist =torch.norm(-pos[:,1]+self.goal_points[:,1],dim=-1) 
+        success = (dist < 0.10) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2) #find the successful robots, if succeeded, no need to continue
+        absolute_tipover=(torch.abs(roll)>2.00) | (torch.abs(pitch)>2.00) # if the robot tips over by 90 degree, end it
 
         if success.any():
             self.sample_goals(env_ids=torch.nonzero(success).squeeze(-1))
+
+        # print(f'TO={time_out}, SUC={success}, AT={absolute_tipover}')
 
         return  absolute_tipover | success, time_out
 
@@ -302,8 +321,8 @@ class BittlehrlEnv(DirectRLEnv):
         # Check which envs succeeded
         pos = self.robot.data.root_link_pos_w[env_ids]
         roll, pitch,_ = self._extract_euler_angles()
-        dist = torch.norm(self.goal_points[env_ids, :2] - pos[:, :2], dim=-1)
-        success = (dist < 0.1) & (torch.abs(roll[env_ids]) < 0.3) & (torch.abs(pitch[env_ids]) < 0.2) #create mask here for success, filtering
+        dist = torch.norm(self.goal_points[env_ids, 1] - pos[:, 1], dim=-1)
+        success = (dist < 0.10) & (torch.abs(roll[env_ids]) < 0.3) & (torch.abs(pitch[env_ids]) < 0.2) #create mask here for success, filtering
         succ_ids = env_ids[success]
 
         if self.first_reset or len(succ_ids) > 0:

@@ -90,8 +90,8 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
                 joint_names_expr=["left_.*", "right_.*"],
                 effort_limit_sim=120.0,
                 velocity_limit_sim=20.0,
-                stiffness=30.0,
-                damping=2.0,
+                stiffness=20.0,
+                damping=10.0,
             ),
         },
     )
@@ -124,14 +124,17 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== REWARD WEIGHTS (from GymWrapper) =====
     
     # micro rewrd terms, every action cycle these rewards are taken and measured
-    rew_joint_vel=-0.001
-    rew_roll=-0.05
-    rew_pitch=-0.05
-
+    rew_torques=-0.001
+    rew_roll=-0.5
+    rew_pitch=-0.5
+    rew_pitchrate=-0.07
+    rew_rollrate=-0.07
+    rew_height=-0.1
     # macro rewards, collected every RL step
-    rew_dist_goal=-4 
+    rew_dist_goal=-10 
     goal_reward=1000
-    tipped_penalty=-5
+    tipped_penalty=-50
+    near_goal_reward=100
 
     # ====== RAY CASTER (pelvis → ground) ======
     # ray_caster: RayCasterCfg = RayCasterCfg(
