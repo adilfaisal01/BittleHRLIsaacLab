@@ -111,6 +111,7 @@ class BittlehrlEnv(DirectRLEnv):
 
     def sample_points(self, env_ids: torch.Tensor, z_offset: float = 1) -> torch.Tensor:
         origins = self.robot.data.root_link_pos_w
+        origins = origins[env_ids]  # Only select the envs we care about
         half_size = self.cfg.scene.env_spacing / 2.0
         margin = 0.5
 
@@ -119,7 +120,7 @@ class BittlehrlEnv(DirectRLEnv):
         y_max = origins[:, 1] + 1.5
         y = sample_uniform(y_min, y_max, (len(env_ids),), device=self.device)
         z = origins[:, 2] + z_offset
-        # print(f'GP: {y}')
+        # print(f'GP: x={x}, y={y}, z={z}')
 
         return torch.stack([x, y, z], dim=-1)
 
@@ -201,7 +202,7 @@ class BittlehrlEnv(DirectRLEnv):
         # print(f'Normalized actions:{actions}, Clamped actions={actions_clamped}')
         self.hopfoscillator=VectorizedHopfOscillator(gait_pattern=self.gaitcommands) #update the hopf oscillator as part of the caching
         self.microrewards=torch.zeros(self.scene.num_envs,device=self.device)  #each RL steps all the low level rewards are set to zero, so the microrewards restart accumulation
-        print(f'true actions: {actions_true}')
+        # print(f'true actions: {actions_true}')
        
 ## actual action being processed and applied to the simulated robot
 
@@ -272,10 +273,10 @@ class BittlehrlEnv(DirectRLEnv):
         pos=self.robot.data.root_link_pos_w
         # print(f'robot position :{pos}')
         roll,pitch,yaw=self._extract_euler_angles()
-        distance_from_goal=torch.norm(self.goal_points[:, 1] - pos[:, 1], dim=-1) #find the distance from goal, every 5 seconds
+        distance_from_goal=torch.abs(self.goal_points[:, 1] - pos[:, 1]) #find the distance from goal, every 5 seconds
         self.prev_distance=distance_from_goal
 
-        at_goal= (distance_from_goal < 0.10) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2)
+        at_goal= (distance_from_goal < 0.20) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2)
 
         is_tipped=(torch.abs(roll)>0.8) | (torch.abs(pitch)>0.8)
         near_goal=(distance_from_goal < 0.50) & (distance_from_goal >= 0.20)
@@ -283,7 +284,7 @@ class BittlehrlEnv(DirectRLEnv):
         tipped_bots=torch.where(is_tipped,torch.tensor(self.cfg.tipped_penalty,device=self.device),torch.tensor(0.0,device=self.device))
         near_goal_bots=torch.where(near_goal,torch.tensor(self.cfg.near_goal_reward,device=self.device),torch.tensor(0.0,device=self.device))
 
-        print(f'distance from goal:{distance_from_goal}')
+        # print(f'distance from goal:{distance_from_goal}')
         # print(f'Microrewards: {self.microrewards}, Near goal reward: {near_goal_bots}, At goal reward: {goal_arrival_bots}')
 
         reward=(
@@ -302,12 +303,13 @@ class BittlehrlEnv(DirectRLEnv):
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         roll, pitch,_ = self._extract_euler_angles()
-        dist =torch.norm(-pos[:,1]+self.goal_points[:,1],dim=-1) 
-        success = (dist < 0.10) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2) #find the successful robots, if succeeded, no need to continue
+        dist =torch.abs(-pos[:,1]+self.goal_points[:,1]) 
+        success = (dist < 0.20) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2) #find the successful robots, if succeeded, no need to continue
         absolute_tipover=(torch.abs(roll)>2.00) | (torch.abs(pitch)>2.00) # if the robot tips over by 90 degree, end it
 
         if success.any():
             self.sample_goals(env_ids=torch.nonzero(success).squeeze(-1))
+            print(f'yeee boii, {success}')
 
         # print(f'TO={time_out}, SUC={success}, AT={absolute_tipover}')
 
@@ -321,8 +323,8 @@ class BittlehrlEnv(DirectRLEnv):
         # Check which envs succeeded
         pos = self.robot.data.root_link_pos_w[env_ids]
         roll, pitch,_ = self._extract_euler_angles()
-        dist = torch.norm(self.goal_points[env_ids, 1] - pos[:, 1], dim=-1)
-        success = (dist < 0.10) & (torch.abs(roll[env_ids]) < 0.3) & (torch.abs(pitch[env_ids]) < 0.2) #create mask here for success, filtering
+        dist = torch.abs(self.goal_points[env_ids, 1] - pos[:, 1])
+        success = (dist < 0.20) & (torch.abs(roll[env_ids]) < 0.3) & (torch.abs(pitch[env_ids]) < 0.2) #create mask here for success, filtering
         succ_ids = env_ids[success]
 
         if self.first_reset or len(succ_ids) > 0:

@@ -30,7 +30,7 @@ BITTLE_ASSET_DIR = Path(__file__).resolve().parent
 class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== ENV / TIMING ======
     decimation = 20 #number of control steps between policy updates, policy runs at 5 Hz, simulation at 100 Hz
-    episode_length_s = 20
+    episode_length_s = 40
     action_space = spaces.Box(low= 0,high=1,dtype=np.float32,shape=(3,)) #normalized actions
     # 1) your basic scalar limits
     
@@ -124,7 +124,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== REWARD WEIGHTS (from GymWrapper) =====
     
     # micro rewrd terms, every action cycle these rewards are taken and measured
-    rew_torques=-0.001
+    rew_torques=-0.01
     rew_roll=-0.5
     rew_pitch=-0.5
     rew_pitchrate=-0.07
