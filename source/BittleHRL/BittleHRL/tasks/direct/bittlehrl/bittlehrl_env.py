@@ -229,10 +229,10 @@ class BittlehrlEnv(DirectRLEnv):
         self.microrewards=0.90*self.microrewards+(self.cfg.rew_roll*torch.abs(roll)+
                                                   self.cfg.rew_pitch*torch.abs(pitch)+
                                                   self.cfg.rew_torques*sum_torques+
-                                                  self.cfg.rew_height*height_rob+
                                                   self.cfg.rew_rollrate*torch.abs(roll_rate)+
-                                                  self.cfg.rew_pitchrate*torch.abs(pitch_rate)+
-                                                  self.cfg.rew_height*height_rob) #per action step, the low level rewards are added
+                                                  self.cfg.rew_pitchrate*torch.abs(pitch_rate)
+                                                  ) #per action step, the low level rewards are added
+        self.microrewards=self.cfg.upright_reward+self.microrewards
         
     def _get_observations(self) -> dict:
         
@@ -307,9 +307,9 @@ class BittlehrlEnv(DirectRLEnv):
         success = (dist < 0.20) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2) #find the successful robots, if succeeded, no need to continue
         absolute_tipover=(torch.abs(roll)>2.00) | (torch.abs(pitch)>2.00) # if the robot tips over by 90 degree, end it
 
-        if success.any():
-            self.sample_goals(env_ids=torch.nonzero(success).squeeze(-1))
-            print(f'yeee boii, {success}')
+        # if success.any():
+        #     self.sample_goals(env_ids=torch.nonzero(success).squeeze(-1))
+        #     print(f'yeee boii, {success}')
 
         # print(f'TO={time_out}, SUC={success}, AT={absolute_tipover}')
 
