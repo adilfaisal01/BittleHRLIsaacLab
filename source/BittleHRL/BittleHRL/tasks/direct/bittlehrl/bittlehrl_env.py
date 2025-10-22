@@ -37,11 +37,13 @@ class BittlehrlEnv(DirectRLEnv):
         # self.device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         
-        # action_scale = np.array([150,0.667,0.46],dtype=np.float32) #forward velocity, period, duty cycle respectively
+        # action_scale = np.array([150,0.667,0.46],dtype=np.float32) #forward velocity, period, duty cycle, swing height, yaw_rate respectively
         # action_bias=np.array([50,0.33,0.5],dtype=np.float32)
 
-        self.act_scale=torch.tensor([250,0.667,0.46],dtype=torch.float32,device=self.device) #action scale
-        self.act_bias=torch.tensor([100,0.33,0.5],dtype=torch.float32,device=self.device) #action bias
+        self.act_scale=torch.tensor([250,0.667,0.46,3,4],dtype=torch.float32,device=self.device) #action scale
+        self.act_bias=torch.tensor([100,0.33,0.5,5,-2],dtype=torch.float32,device=self.device) #action bias
+        self.jointcorrectionsfactor=torch.deg2rad(torch.tensor(5,device=self.device)) #+/-5 degrees correction, tiny corrections on top of the cpg output
+        self.jointcorrs=torch.rand(self.scene.num_envs,8)
 
         # per-env goal points (xyz)
         self.goal_points = torch.zeros((self.scene.num_envs, 3), device=self.device)
@@ -114,8 +116,11 @@ class BittlehrlEnv(DirectRLEnv):
         origins = origins[env_ids]  # Only select the envs we care about
         half_size = self.cfg.scene.env_spacing / 2.0
         margin = 0.5
-
-        x = origins[:, 0]
+        
+        x_origin = origins[:, 0]
+        x_min=x_origin+0.75
+        x_max=x_origin+1.5
+        x=sample_uniform(x_min, x_max, (len(env_ids),), device=self.device)
         y_min = origins[:, 1] +0.75
         y_max = origins[:, 1] + 1.5
         y = sample_uniform(y_min, y_max, (len(env_ids),), device=self.device)
@@ -190,19 +195,28 @@ class BittlehrlEnv(DirectRLEnv):
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         
         # decoding normalized actions into convertable values and updating the dataclass
-        actions_clamped=torch.sigmoid(actions)
-        actions_true=actions_clamped*self.act_scale.unsqueeze(0)+self.act_bias.unsqueeze(0)
+        gait_param_NNs=actions[:,:5]
+        actions_clamped_01=torch.sigmoid(gait_param_NNs)
+        actions_true=actions_clamped_01*self.act_scale.unsqueeze(0)+self.act_bias.unsqueeze(0)
         fv=actions_true[:,0]
         gaitT=actions_true[:,1]
         dc=actions_true[:,2]
+        swingH=actions_true[:,3]
+        yaw=actions_true[:,4]
         self.gaitcommands.forwardvel=torch.clamp(fv,min=100,max=250)
         self.gaitcommands.T=torch.clamp(gaitT,min=0.33,max=1)
         self.gaitcommands.dutycycle=torch.clamp(dc,min=0.5,max=0.9)
+        self.gaitcommands.H=torch.clamp(swingH,min=5,max=8)
+        self.gaitcommands.yaw_rate=torch.clamp(yaw,min=-2,max=4)
+
+        ### adding residuals to joint angles
+        residuals_NN=torch.tanh(actions[:,5:])
+        self.jointcorrs=self.jointcorrectionsfactor*residuals_NN
         # print(f'forwardvel :{fv}',f'T: {gaitT}',f'duty cycle: {dc}')
         # print(f'Normalized actions:{actions}, Clamped actions={actions_clamped}')
         self.hopfoscillator=VectorizedHopfOscillator(gait_pattern=self.gaitcommands) #update the hopf oscillator as part of the caching
         self.microrewards=torch.zeros(self.scene.num_envs,device=self.device)  #each RL steps all the low level rewards are set to zero, so the microrewards restart accumulation
-        # print(f'true actions: {actions_true}')
+        # print(f'true actions: {actions_true}, residuals={self.jointcorrs}')
        
 ## actual action being processed and applied to the simulated robot
 
@@ -212,7 +226,7 @@ class BittlehrlEnv(DirectRLEnv):
         # print("Hip Angle ", hip_angle,"\n","Knee Angle ",knee_angle, "\n")
         self.joint_targets=torch.stack((hip_angle,knee_angle),dim=2)
         self.joint_targets=self.joint_targets.view(self.scene.num_envs,-1)
-        self.joint_targets = self.joint_targets * self.joint_signs
+        self.joint_targets = self.joint_targets * self.joint_signs+self.jointcorrs
         # print("joint target ", self.joint_targets)
         
         self.robot.set_joint_position_target(self.joint_targets, joint_ids=None) #apply action to relevant joints and the PD controller is included (fix needed)
@@ -273,7 +287,7 @@ class BittlehrlEnv(DirectRLEnv):
         pos=self.robot.data.root_link_pos_w
         # print(f'robot position :{pos}')
         roll,pitch,yaw=self._extract_euler_angles()
-        distance_from_goal=torch.abs(self.goal_points[:, 1] - pos[:, 1]) #find the distance from goal, every 5 seconds
+        distance_from_goal = torch.norm(self.goal_points[:, :2] - pos[:, :2], dim=-1)        
         self.prev_distance=distance_from_goal
 
         at_goal= (distance_from_goal < 0.20) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2)
@@ -303,13 +317,13 @@ class BittlehrlEnv(DirectRLEnv):
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         roll, pitch,_ = self._extract_euler_angles()
-        dist =torch.abs(-pos[:,1]+self.goal_points[:,1]) 
+        dist = torch.norm(self.goal_points[:, :2] - pos[:, :2], dim=-1)        
         success = (dist < 0.20) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2) #find the successful robots, if succeeded, no need to continue
         absolute_tipover=(torch.abs(roll)>2.00) | (torch.abs(pitch)>2.00) # if the robot tips over by 90 degree, end it
 
-        # if success.any():
-        #     self.sample_goals(env_ids=torch.nonzero(success).squeeze(-1))
-        #     print(f'yeee boii, {success}')
+        if success.any():
+            self.sample_goals(env_ids=torch.nonzero(success).squeeze(-1))
+            print(f'yeee boii, {success}')
 
         # print(f'TO={time_out}, SUC={success}, AT={absolute_tipover}')
 
@@ -323,7 +337,7 @@ class BittlehrlEnv(DirectRLEnv):
         # Check which envs succeeded
         pos = self.robot.data.root_link_pos_w[env_ids]
         roll, pitch,_ = self._extract_euler_angles()
-        dist = torch.abs(self.goal_points[env_ids, 1] - pos[:, 1])
+        dist = torch.norm(self.goal_points[env_ids, :2] - pos[:, :2], dim=-1)
         success = (dist < 0.20) & (torch.abs(roll[env_ids]) < 0.3) & (torch.abs(pitch[env_ids]) < 0.2) #create mask here for success, filtering
         succ_ids = env_ids[success]
 

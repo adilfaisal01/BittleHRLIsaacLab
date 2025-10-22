@@ -31,7 +31,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== ENV / TIMING ======
     decimation = 20 #number of control steps between policy updates, policy runs at 5 Hz, simulation at 100 Hz
     episode_length_s = 40
-    action_space = spaces.Box(low= 0,high=1,dtype=np.float32,shape=(3,)) #normalized actions
+    action_space = spaces.Box(low= 0,high=1,dtype=np.float32,shape=(13,)) #normalized actions
     # 1) your basic scalar limits
     
     observation_space = 25
