@@ -4,10 +4,14 @@ services:
     build:
       context: ..  # project root
       dockerfile: docker-deployments/DockerFile.dockerfile
+      args:
+        ACCEPT_EULA: "Y" 
     container_name: bittlehrl-sim
     network_mode: "host"
 
     environment:
+
+      ACCEPT_EULA: "Y"
       # GUI + NVIDIA
       DISPLAY: ${DISPLAY}
       QT_QPA_PLATFORM: xcb
