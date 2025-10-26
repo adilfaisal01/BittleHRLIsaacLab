@@ -1,0 +1,8 @@
+to access container from from project root:
+sudo docker compose -f docker-deployments/docker-compose.yaml run --rm --entrypoint /bin/bash bittle
+
+to build:
+sudo docker compose -f docker-deployments/docker-compose.yaml build 
+
+to run:
+sudo docker compose -f docker-deployments/docker-compose.yaml up
