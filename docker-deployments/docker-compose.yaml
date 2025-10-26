@@ -45,14 +45,14 @@ services:
       # Checkpoints
       - ./checkpoints:/BittleHRL/checkpoints:rw
     
-    # runtime: nvidia  # For older Docker versions. Use "deploy" below for modern compose
-    # stdin_open: true
-    # tty: true
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    runtime: nvidia  # For older Docker versions. Use "deploy" below for modern compose
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     entrypoint: ["/BittleHRL/docker-deployments/entrypoint.sh"]
