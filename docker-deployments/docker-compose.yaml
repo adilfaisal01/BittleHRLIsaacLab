@@ -49,7 +49,7 @@ services:
       # Checkpoints
       - ./checkpoints:/BittleHRL/checkpoints:rw
     
-    runtime: nvidia  # For older Docker versions. Use "deploy" below for modern compose
+    # runtime: nvidia  # For older Docker versions. Use "deploy" below for modern compose
     stdin_open: true
     tty: true
     deploy:
