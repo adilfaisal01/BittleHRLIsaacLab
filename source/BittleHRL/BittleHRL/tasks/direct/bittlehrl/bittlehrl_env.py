@@ -20,6 +20,7 @@ from .bittlehrl_env_cfg import BittlehrlEnvCfg
 from .inversegait import JointOffsets, hiplength,kneelength
 from .vectorizedBittle_Locomotion import tensor_connection_weight_matrix_R,tensorgaitParams,VectorizedHopfOscillator,VectorizedMotionPlanning
 import numpy as np
+from isaaclab.terrains import TerrainImporter
 
 ## todo: 1. add previous actions to obs space, add smoothness, 2. add 
 
@@ -59,7 +60,7 @@ class BittlehrlEnv(DirectRLEnv):
 
         self.first_reset = True
 
-        self.gaitcommands=tensorgaitParams(H=torch.full((self.scene.num_envs,),5.678),x_COMshift=torch.full((self.scene.num_envs,),-10),robotheight=torch.full((self.scene.num_envs,),20),
+        self.gaitcommands=tensorgaitParams(H=torch.full((self.scene.num_envs,),5.678),x_COMshift=torch.full((self.scene.num_envs,),10),robotheight=torch.full((self.scene.num_envs,),20),
                                        yaw_rate=torch.zeros(self.scene.num_envs),
                                        forwardvel=torch.full((self.scene.num_envs,),0),
                                        dutycycle=torch.full((self.scene.num_envs,),0.0),
@@ -159,9 +160,12 @@ class BittlehrlEnv(DirectRLEnv):
                 goal.set_world_pose(pos)
     
     def _setup_scene(self):
-        self.robot = Articulation(self.cfg.robot_cfg)
+        super()._setup_scene()
+        
+        self.robot = Articulation(self.cfg.robot_cfg) #adding the robot
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
+        terrain=TerrainImporter(self.cfg.terrain)
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
         # we need to explicitly filter collisions for CPU simulation
