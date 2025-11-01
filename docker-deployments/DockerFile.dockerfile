@@ -46,7 +46,7 @@ ENV PYTHONPATH="/IsaacLab/source:/BittleHRL/source:${PYTHONPATH}"
 
 # --- FIXED INSTALL: install from /BittleHRL/source instead of nested ---
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -e /BittleHRL/source
+    pip install -e /BittleHRL/source/BittleHRL
 
 # --- Optional: install dev tools ---
 RUN pip install pre-commit
