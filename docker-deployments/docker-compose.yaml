@@ -12,7 +12,7 @@ services:
 
     environment:
       ACCEPT_EULA: "Y"
-      DISPLAY: ${DISPLAY}
+      #DISPLAY: ${DISPLAY}
       NVIDIA_DRIVER_CAPABILITIES: all
       NVIDIA_VISIBLE_DEVICES: all
       OMNI_KIT_ALLOW_ROOT: 1
@@ -21,8 +21,8 @@ services:
 
     volumes:
       - ../:/BittleHRL:rw                # mount full project
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - $HOME/.Xauthority:/root/.Xauthority:rw
+      #- /tmp/.X11-unix:/tmp/.X11-unix:rw
+      #- $HOME/.Xauthority:/root/.Xauthority:rw
       - ~/.cache/ov:/root/.cache/ov:rw
       - ~/.nucleus:/root/.nucleus:rw
       - ./checkpoints:/BittleHRL/checkpoints:rw
