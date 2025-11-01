@@ -6,3 +6,10 @@ sudo docker compose -f docker-deployments/docker-compose.yaml build
 
 to run:
 sudo docker compose -f docker-deployments/docker-compose.yaml up
+
+docker compose run --rm \
+  -e NUM_ENVS=16 \
+  -e MAX_ITERS=2000 \
+  -e HEADLESS=true \
+  bittle
+
