@@ -17,7 +17,7 @@ services:
       NVIDIA_VISIBLE_DEVICES: all
       OMNI_KIT_ALLOW_ROOT: 1
       TERM: xterm
-      PYTHONPATH: /BittleHRL/source:/IsaacLab/source:${PYTHONPATH}
+      PYTHONPATH: /IsaacLab/source:/BittleHRL/source/BittleHRL
 
     volumes:
       - ../:/BittleHRL:rw                # mount full project
