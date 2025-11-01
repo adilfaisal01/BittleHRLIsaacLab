@@ -1,65 +1,51 @@
+# Base Isaac Sim image
 FROM nvcr.io/nvidia/isaac-sim:5.0.0
 
 ENV DOCKER_USER_HOME=/root
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Work from root
 WORKDIR /
 
-# Install utilities
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+# Utilities
+RUN apt-get update && apt-get install -y \
     git python3 python3-pip vim cmake build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --upgrade pip 
+RUN pip3 install --upgrade pip
 
-# --- Clone IsaacLab (deps layer, changes rarely) ---
+# --- Clone IsaacLab pinned to 2.2.1 ---
 RUN git clone --depth=1 --branch release/2.2.0 https://github.com/isaac-sim/IsaacLab.git /IsaacLab
 
-# Environment variables
+# Env vars for IsaacLab
 ENV ISAACSIM_PATH=/isaac-sim
 ENV ISAACLAB_PATH=/IsaacLab
-ENV PYTHONPATH=${ISAACLAB_PATH}/source:${PYTHONPATH}
+ENV PYTHONPATH=/IsaacLab/source:${PYTHONPATH}
 
 WORKDIR /IsaacLab
-
-# --- Install IsaacLab dependencies ---
-# --- Link isaac sim ---
 RUN ln -s ${ISAACSIM_PATH} _isaac_sim
 
-# Use BuildKit cache for pip
-RUN --mount=type=cache,target=/root/.cache/pip \
-    TERM=xterm ./isaaclab.sh --install
+# Install IsaacLab deps
+RUN --mount=type=cache,target=/root/.cache/pip TERM=xterm ./isaaclab.sh --install
 
-# ==========================
-# === External Project Integration ==
-# ==========================
+# =========================
+# Project Integration
+# =========================
 
-# --- Copy your external Isaac Lab project ---
-COPY . /BittleHRL/
+# Copy project (your BittleHRL repo)
+COPY . /BittleHRL
 
-# Move into project directory
+# Install BittleHRL in editable mode
+WORKDIR /BittleHRL/source
+RUN pip install -e BittleHRL
+
+# Entrypoint
+COPY ./docker-deployments/entrypoint.sh /BittleHRL/docker-deployments/entrypoint.sh
+RUN chmod +x /BittleHRL/docker-deployments/entrypoint.sh
+
+# Default working directory
 WORKDIR /BittleHRL
 
-
-# --- Configure environment ---
-# Add Isaac Lab to Python path (we cloned it earlier)
-ENV PYTHONPATH="/IsaacLab/source:${PYTHONPATH}"
-
-# --- Install your project independently in editable mode ---
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -e /BittleHRL/source/BittleHRL
-
-# --- Optional: install dev tools like pre-commit ---
-RUN pip install pre-commit
-
-# --- Entrypoint setup ---
-COPY ./docker-deployments/entrypoint.sh /BittleHRL/docker/entrypoint.sh
-RUN chmod +x /BittleHRL/docker/entrypoint.sh
-
-# --- Default working directory ---
-WORKDIR /BittleHRL
+# PYTHONPATH includes your project
+ENV PYTHONPATH=/BittleHRL/source/BittleHRL:/IsaacLab/source:${PYTHONPATH}
 
 ENTRYPOINT ["/BittleHRL/docker-deployments/entrypoint.sh"]
-
-
