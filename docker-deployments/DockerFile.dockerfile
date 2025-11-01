@@ -14,7 +14,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
 RUN pip3 install --upgrade pip 
 
 # --- Clone IsaacLab (deps layer, changes rarely) ---
-RUN git clone --depth=1 https://github.com/isaac-sim/IsaacLab.git 
+RUN git clone --depth=1 --branch release/2.2.0 https://github.com/isaac-sim/IsaacLab.git /IsaacLab
 
 # Environment variables
 ENV ISAACSIM_PATH=/isaac-sim
