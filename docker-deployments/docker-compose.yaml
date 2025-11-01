@@ -1,57 +1,36 @@
+version: "3.9"
+
 services:
   bittle:
-    image: bittlehrl:latest
     build:
-      context: ..  # project root
+      context: ..
       dockerfile: docker-deployments/DockerFile.dockerfile
       args:
-        ACCEPT_EULA: "Y" 
+        ACCEPT_EULA: "Y"
     container_name: bittlehrl-sim
     network_mode: "host"
 
     environment:
-
       ACCEPT_EULA: "Y"
-      # GUI + NVIDIA
-      #DISPLAY: ${DISPLAY}
-      #QT_QPA_PLATFORM: xcb
-      #QT_X11_NO_MITSHM: 1
+      DISPLAY: ${DISPLAY}
       NVIDIA_DRIVER_CAPABILITIES: all
       NVIDIA_VISIBLE_DEVICES: all
       OMNI_KIT_ALLOW_ROOT: 1
       TERM: xterm
-
-      # IsaacLab paths
-      ISAACSIM_PATH: /isaac-sim
-      ISAACLAB_PATH: /IsaacLab
-      PYTHONPATH: /IsaacLab/source:/BittleHRL/source
-
-      # # Local/CPU override
-      # USE_GPU: "false"   # set to true on GPU cluster
-      # HEADLESS: "true"
-      # VIDEO: "true"
-      # TASK: Isaac-Cartpole-v0
-      # NUM_ENVS: 64
-      # TRAIN_SCRIPT: /BittleHRL/scripts/skrl/train.py  # absolute path
+      PYTHONPATH: /BittleHRL/source:/IsaacLab/source:${PYTHONPATH}
 
     volumes:
-      # Mount full project root
-      - ../:/BittleHRL:rw
-
-      # X11 forwarding
+      - ../:/BittleHRL:rw                # mount full project
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - $HOME/.Xauthority:/root/.Xauthority:rw
-
-      # Cache & Nucleus
       - ~/.cache/ov:/root/.cache/ov:rw
       - ~/.nucleus:/root/.nucleus:rw
-
-      # Checkpoints
       - ./checkpoints:/BittleHRL/checkpoints:rw
-    
-    runtime: nvidia  # For older Docker versions. Use "deploy" below for modern compose
+
+    runtime: nvidia
     stdin_open: true
     tty: true
+
     deploy:
       resources:
         reservations:
@@ -59,4 +38,3 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    entrypoint: ["/BittleHRL/docker-deployments/entrypoint.sh"]
