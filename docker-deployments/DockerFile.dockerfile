@@ -8,8 +8,7 @@ WORKDIR /
 
 # Install utilities
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    git python3 python3-pip vim cmake build-essential && \
-    rm -rf /var/lib/apt/lists/*
+    git python3 python3-pip vim cmake build-essential
 
 RUN pip3 install --upgrade pip 
 
@@ -57,5 +56,3 @@ RUN chmod +x /BittleHRL/docker-deployments/entrypoint.sh
 
 # --- Default working directory ---
 WORKDIR /BittleHRL
-
-ENTRYPOINT ["/BittleHRL/docker-deployments/entrypoint.sh"]

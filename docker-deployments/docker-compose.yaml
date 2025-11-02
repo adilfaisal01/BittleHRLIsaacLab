@@ -12,6 +12,8 @@ services:
 
     environment:
       ACCEPT_EULA: "Y"
+      NUM_ENVS: 8
+      MAX_ITERS: 15
       #DISPLAY: ${DISPLAY}
       NVIDIA_DRIVER_CAPABILITIES: all
       NVIDIA_VISIBLE_DEVICES: all
@@ -38,3 +40,5 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    
+    entrypoint: ["/BittleHRL/docker-deployments/entrypoint.sh"]
