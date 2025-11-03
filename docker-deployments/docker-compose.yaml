@@ -12,8 +12,8 @@ services:
 
     environment:
       ACCEPT_EULA: "Y"
-      NUM_ENVS: 8
-      MAX_ITERS: 15
+      NUM_ENVS: ${NUM_ENVS:-8}
+      MAX_ITERS: ${MAX_ITERS:-15}
       #DISPLAY: ${DISPLAY}
       NVIDIA_DRIVER_CAPABILITIES: all
       NVIDIA_VISIBLE_DEVICES: all
