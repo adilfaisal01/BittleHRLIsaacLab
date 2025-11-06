@@ -299,7 +299,7 @@ class BittlehrlEnv(DirectRLEnv):
 
         #print(f'distance from goal:{distance_from_goal}')
         #print(f'Microrewards: {self.microrewards}, Near goal reward: {near_goal_bots}, At goal reward: {goal_arrival_bots}')
-	normalized_microrewards=torch.tanh(self.microrewards)*120
+		normalized_microrewards=torch.tanh(self.microrewards)*120
         reward=(
            distance_from_goal*self.cfg.rew_dist_goal+
             goal_arrival_bots*10+
