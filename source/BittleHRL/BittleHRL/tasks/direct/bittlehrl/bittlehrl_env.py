@@ -31,18 +31,17 @@ class BittlehrlEnv(DirectRLEnv):
         self._actuated_id = 0
 
         super().__init__(cfg, render_mode, **kwargs)
-        
         self.joint_ids = list(range(len(self.robot.data.joint_pos)))
         self.joint_pos = self.robot.data.joint_pos
         self.joint_vel = self.robot.data.joint_vel
-        # self.device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        #self.device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         
         # action_scale = np.array([150,0.667,0.46],dtype=np.float32) #forward velocity, period, duty cycle, swing height, yaw_rate respectively
         # action_bias=np.array([50,0.33,0.5],dtype=np.float32)
 
-        self.act_scale=torch.tensor([250,0.667,0.46,3,4],dtype=torch.float32,device=self.device) #action scale
-        self.act_bias=torch.tensor([100,0.33,0.5,5,-2],dtype=torch.float32,device=self.device) #action bias
+        self.act_scale=torch.tensor([250,0.667,0.46,3,2],dtype=torch.float32,device=self.device) #action scale
+        self.act_bias=torch.tensor([100,0.33,0.5,5,-1],dtype=torch.float32,device=self.device) #action bias
         self.jointcorrectionsfactor=torch.deg2rad(torch.tensor(5,device=self.device)) #+/-5 degrees correction, tiny corrections on top of the cpg output
         self.jointcorrs=torch.rand(self.scene.num_envs,8)
 
@@ -120,10 +119,10 @@ class BittlehrlEnv(DirectRLEnv):
         
         x_origin = origins[:, 0]
         x_min=x_origin+0.75
-        x_max=x_origin+1.5
+        x_max=x_origin+5
         x=sample_uniform(x_min, x_max, (len(env_ids),), device=self.device)
         y_min = origins[:, 1] +0.75
-        y_max = origins[:, 1] + 1.5
+        y_max = origins[:, 1] + 5
         y = sample_uniform(y_min, y_max, (len(env_ids),), device=self.device)
         z = origins[:, 2] + z_offset
         # print(f'GP: x={x}, y={y}, z={z}')
@@ -165,7 +164,7 @@ class BittlehrlEnv(DirectRLEnv):
         self.robot = Articulation(self.cfg.robot_cfg) #adding the robot
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        terrain=TerrainImporter(self.cfg.terrain)
+        # terrain=TerrainImporter(self.cfg.terrain)
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
         # we need to explicitly filter collisions for CPU simulation
@@ -227,7 +226,7 @@ class BittlehrlEnv(DirectRLEnv):
     def _apply_action(self) -> None:
         hip_angle,knee_angle=self._computingjointtragets()
         # print("Q ", self.Q)
-        # print("Hip Angle ", hip_angle,"\n","Knee Angle ",knee_angle, "\n")
+        #print("Hip Angle ", hip_angle,"\n","Knee Angle ",knee_angle, "\n")
         self.joint_targets=torch.stack((hip_angle,knee_angle),dim=2)
         self.joint_targets=self.joint_targets.view(self.scene.num_envs,-1)
         self.joint_targets = self.joint_targets * self.joint_signs+self.jointcorrs
@@ -244,14 +243,10 @@ class BittlehrlEnv(DirectRLEnv):
 
         roll_rate=self.robot.data.root_ang_vel_b[:,0]
         pitch_rate=self.robot.data.root_ang_vel_b[:,1]
-        self.microrewards=0.90*self.microrewards+(self.cfg.rew_roll*torch.abs(roll)+
-                                                  self.cfg.rew_pitch*torch.abs(pitch)+
-                                                  self.cfg.rew_torques*sum_torques+
-                                                  self.cfg.rew_rollrate*torch.abs(roll_rate)+
-                                                  self.cfg.rew_pitchrate*torch.abs(pitch_rate)
-                                                  ) #per action step, the low level rewards are added
-        self.microrewards=self.cfg.upright_reward+self.microrewards
-        
+        penalties=self.cfg.rew_roll*torch.abs(roll)+self.cfg.rew_pitch*torch.abs(pitch)+self.cfg.rew_torques*sum_torques+self.cfg.rew_rollrate*torch.abs(roll_rate)+self.cfg.rew_pitchrate*torch.abs(pitch_rate)
+        #per action step, the low level rewards are added
+        self.microrewards=self.cfg.upright_reward+penalties+0.9*self.microrewards
+       
     def _get_observations(self) -> dict:
         
         linear_velocity=self.robot.data.root_lin_vel_b
@@ -302,15 +297,15 @@ class BittlehrlEnv(DirectRLEnv):
         tipped_bots=torch.where(is_tipped,torch.tensor(self.cfg.tipped_penalty,device=self.device),torch.tensor(0.0,device=self.device))
         near_goal_bots=torch.where(near_goal,torch.tensor(self.cfg.near_goal_reward,device=self.device),torch.tensor(0.0,device=self.device))
 
-        # print(f'distance from goal:{distance_from_goal}')
-        # print(f'Microrewards: {self.microrewards}, Near goal reward: {near_goal_bots}, At goal reward: {goal_arrival_bots}')
-
+        #print(f'distance from goal:{distance_from_goal}')
+        #print(f'Microrewards: {self.microrewards}, Near goal reward: {near_goal_bots}, At goal reward: {goal_arrival_bots}')
+	normalized_microrewards=torch.tanh(self.microrewards)*120
         reward=(
            distance_from_goal*self.cfg.rew_dist_goal+
-            goal_arrival_bots+
+            goal_arrival_bots*10+
             tipped_bots+
-            near_goal_bots+
-            self.microrewards
+            near_goal_bots*10+
+            normalized_microrewards
         )
 
         return reward
@@ -325,15 +320,15 @@ class BittlehrlEnv(DirectRLEnv):
         success = (dist < 0.20) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2) #find the successful robots, if succeeded, no need to continue
         absolute_tipover=(torch.abs(roll)>2.00) | (torch.abs(pitch)>2.00) # if the robot tips over by 90 degree, end it
 
-        if success.any():
-            self.sample_goals(env_ids=torch.nonzero(success).squeeze(-1))
-            print(f'yeee boii, {success}')
+       # if success.any():
+        #    self.sample_goals(env_ids=torch.nonzero(success).squeeze(-1))
+         #   print(f'yeee boii, {success}')
 
         # print(f'TO={time_out}, SUC={success}, AT={absolute_tipover}')
 
         return  absolute_tipover | success, time_out
 
-    def _reset_idx(self, env_ids: Sequence[int] | None):
+    def  _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
         super()._reset_idx(env_ids)
