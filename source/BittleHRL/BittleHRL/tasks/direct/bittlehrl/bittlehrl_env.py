@@ -299,9 +299,19 @@ class BittlehrlEnv(DirectRLEnv):
         normalized_microrewards=torch.tanh(self.microrewards)*120
 		#print(f'distance from goal:{distance_from_goal}')
         #print(f'Microrewards: {self.microrewards}, Near goal reward: {near_goal_bots}, At goal reward: {goal_arrival_bots}')
-		reward=(distance_from_goal*self.cfg.rew_dist_goal+goal_arrival_bots*10+tipped_bots+near_goal_bots*10+normalized_microrewards)
-
-        return reward
+# normalized_microrewards = torch.tanh(self.microrewards)*120
+#print(f'distance from goal:{distance_from_goal}')
+#print(f'Microrewards: {self.microrewards}, Near goal reward: {near_goal_bots}, At goal reward: {goal_arrival_bots}')
+		reward = (
+		    distance_from_goal * self.cfg.rew_dist_goal +
+		    goal_arrival_bots * 10 +
+		    tipped_bots +
+		    near_goal_bots * 10 +
+		    normalized_microrewards
+		)
+		
+		
+		return reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         
