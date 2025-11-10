@@ -132,11 +132,11 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     rew_rollrate=-0.007
     rew_height=-0.1
     # macro rewards, collected every RL step
-    rew_dist_goal=-0.1  
-    goal_reward=50
-    tipped_penalty=-10
-    near_goal_reward=30
-    upright_reward=0.5
+    rew_dist_goal=-0.1 
+    goal_reward=2
+    tipped_penalty=-1.5
+    near_goal_reward=1.8
+    upright_reward=1
     
 
     # ====== RAY CASTER (pelvis → ground) ======
