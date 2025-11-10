@@ -286,7 +286,7 @@ class BittlehrlEnv(DirectRLEnv):
         pos = self.robot.data.root_link_pos_w
         roll, pitch, yaw = self._extract_euler_angles()
         distance_from_goal = torch.norm(self.goal_points[:, :2] - pos[:, :2], dim=-1)
-	distance_covered=distance_from_goal-self.prev_distance
+	# distance_covered=distance_from_goal-self.prev_distance
         self.prev_distance = distance_from_goal
 
         at_goal = (distance_from_goal < 0.20) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2)
@@ -369,7 +369,7 @@ class BittlehrlEnv(DirectRLEnv):
         root_state = self.spawn_root_states[env_ids]
         joint_pos = self.spawn_joint_pos[env_ids]
         joint_vel = self.spawn_joint_vel[env_ids]
-	self.prev_distance[succ_ids] = torch.norm(self.goal_points[succ_ids, :2] - root_state[:, :2], dim=-1)
+	    # self.prev_distance[succ_ids] = torch.norm(self.goal_points[succ_ids, :2] - root_state[:, :2], dim=-1)
         self.robot.write_root_pose_to_sim(root_state[:, :7], env_ids)
         self.robot.write_root_velocity_to_sim(root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
