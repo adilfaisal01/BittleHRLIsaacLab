@@ -303,14 +303,13 @@ class BittlehrlEnv(DirectRLEnv):
             near_goal, torch.tensor(self.cfg.near_goal_reward, device=self.device), torch.tensor(0.0, device=self.device)
         )
 
-        normalized_microrewards = torch.tanh(self.microrewards)
 
         reward = (
             distance_covered* self.cfg.rew_dist_goal +
             goal_arrival_bots +
             tipped_bots +
             near_goal_bots +
-            normalized_microrewards
+            self.microrewards
         )
 
         return reward
