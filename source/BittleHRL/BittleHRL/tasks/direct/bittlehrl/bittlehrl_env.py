@@ -164,7 +164,7 @@ class BittlehrlEnv(DirectRLEnv):
         self.robot = Articulation(self.cfg.robot_cfg) #adding the robot
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        # terrain=TerrainImporter(self.cfg.terrain)
+        terrain=TerrainImporter(self.cfg.terrain)
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
         # we need to explicitly filter collisions for CPU simulation

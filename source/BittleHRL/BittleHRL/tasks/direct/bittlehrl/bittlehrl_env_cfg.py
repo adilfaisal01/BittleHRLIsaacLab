@@ -133,9 +133,9 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     rew_height=-0.1
     # macro rewards, collected every RL step
     rew_dist_goal=0.4
-    goal_reward=60
+    goal_reward=100
     tipped_penalty=-10
-    near_goal_reward=45
+    near_goal_reward=90
     upright_reward=2
     
 
@@ -156,63 +156,66 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
 
     # ====== TERRAIN (generator) ======
 
-#    N = int(scene.num_envs)
- #   S = float(scene.env_spacing)
-#    rows = int(ceil(sqrt(N)))
-#    cols = int(ceil(N / rows))
+    N = int(scene.num_envs)
+    S = float(scene.env_spacing)
+    rows = int(ceil(sqrt(N)))
+    cols = int(ceil(N / rows))
 
-#    static_fric=float(torch.rand(1))
-#    dyn_fric= float(torch.rand(1))
+    static_fric=float(torch.normal(0.5,0.1,size=(1,1)))
+    dyn_fric= float(torch.normal(0.3,0.15,size=(1,1)))
 
-#    generator = TerrainGeneratorCfg(
-#        size=(S, S),
-#        border_width=0.1,
-#        border_height=-1.0,
-#        num_rows=rows,
-#        num_cols=cols,
-#        color_scheme="height",
- #       horizontal_scale=0.1,
- #       vertical_scale=0.005,
-  #      slope_threshold=0.75,
-  #      use_cache=False,
-   #     sub_terrains={
-    #        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.34),
-            # "hf_pyramid_slope": terrain_gen.HfPyramidSlopedTerrainCfg(
-            #     proportion=0.2, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
-            # ),
-            # "hf_pyramid_slope_inv": terrain_gen.HfInvertedPyramidSlopedTerrainCfg(
-            #     proportion=0.2, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
-            # ),
-            # "pyramid_stairs": terrain_gen.MeshPyramidStairsTerrainCfg(
-            #     proportion=0.05, step_height_range=(0.0, 0.1), step_width=0.3,
-            #     platform_width=3.0, border_width=1.0, holes=False
-            # ),
-            # "pyramid_stairs_inv": terrain_gen.MeshInvertedPyramidStairsTerrainCfg(
-            #     proportion=0.05, step_height_range=(0.0, 0.1), step_width=0.3,
-            #     platform_width=3.0, border_width=1.0, holes=False
-            # ),
-     #       "wave_terrain": terrain_gen.HfWaveTerrainCfg(
-      #          proportion=0.33, amplitude_range=(0.0, 0.2), num_waves=4, border_width=0.25
-       #     ),
-        #    "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
-         #       proportion=0.33, noise_range=(0.0, 0.06), noise_step=0.02, border_width=0.25
-          #  ),
-        #},
-    #)
+    if static_fric>dyn_fric:
+        pass
+    else:
+        dyn_fric=static_fric-float(torch.normal(0.05,0.014,size=(1,1)))
 
-    #terrain = TerrainImporterCfg(
-     #   prim_path="/World/Ground",
-      #  terrain_type="generator",
-       # terrain_generator=generator,
-        #max_init_terrain_level=0,
-        #collision_group=-1,
-        #physics_material=sim_utils.RigidBodyMaterialCfg(
-         #   friction_combine_mode="multiply",
-          #  restitution_combine_mode="multiply",
-           # static_friction=static_fric,
-            #dynamic_friction=dyn_fric,
-        #),
-        #debug_vis=False,
-    #)
+    generator = TerrainGeneratorCfg(
+        size=(S, S),
+        border_width=0.1,
+        border_height=-1.0,
+        num_rows=rows,
+        num_cols=cols,
+        color_scheme="height",
+        horizontal_scale=0.1,
+        vertical_scale=0.005,
+        slope_threshold=0.75,
+        use_cache=False,
+        sub_terrains={
+            "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.34),
+                # "hf_pyramid_slope": terrain_gen.HfPyramidSlopedTerrainCfg(
+                #     proportion=0.2, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
+                # ),
+                # "hf_pyramid_slope_inv": terrain_gen.HfInvertedPyramidSlopedTerrainCfg(
+                #     proportion=0.2, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
+                # ),
+                # "pyramid_stairs": terrain_gen.MeshPyramidStairsTerrainCfg(
+                #     proportion=0.05, step_height_range=(0.0, 0.1), step_width=0.3,
+                #     platform_width=3.0, border_width=1.0, holes=False
+                # ),
+                # "pyramid_stairs_inv": terrain_gen.MeshInvertedPyramidStairsTerrainCfg(
+                #     proportion=0.05, step_height_range=(0.0, 0.1), step_width=0.3,
+                #     platform_width=3.0, border_width=1.0, holes=False
+                # ),
+            "wave_terrain": terrain_gen.HfWaveTerrainCfg(
+                proportion=0.33, amplitude_range=(0.0, 0.06), num_waves=4, border_width=0.25
+            ),
+            "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
+                proportion=0.33, noise_range=(0.0, 0.06), noise_step=0.02, border_width=0.25
+            ),
+            })
+    terrain = TerrainImporterCfg(
+        prim_path="/World/Ground",
+        terrain_type="generator",
+        terrain_generator=generator,
+            max_init_terrain_level=0,
+            collision_group=-1,
+            physics_material=sim_utils.RigidBodyMaterialCfg(
+            friction_combine_mode="multiply",
+            restitution_combine_mode="multiply",
+            static_friction=static_fric,
+                dynamic_friction=dyn_fric,
+            ),
+            debug_vis=False,
+        )
 
-    #terrain_cfg: TerrainImporterCfg=terrain
+    terrain_cfg: TerrainImporterCfg=terrain
