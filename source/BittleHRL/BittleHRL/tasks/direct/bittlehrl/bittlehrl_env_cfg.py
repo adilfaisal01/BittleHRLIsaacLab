@@ -25,7 +25,7 @@ import gymnasium.spaces as spaces
 import torch 
 from isaaclab.managers import EventTermCfg as EventTerm
 import isaaclab.envs.mdp as mdp
-from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg,GaussianNoiseCfg
+from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg,GaussianNoiseCfg,NoiseModelCfg
 
 BITTLE_ASSET_DIR = Path(__file__).resolve().parent
 ## Add domain randomization code here. situations to be simulated: 1. pushes 2. robot material per reset
@@ -48,10 +48,10 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
 
     ## Noise model-- adding gaussian noise to action and observations
         # only per-step noise
-    action_noise_model: GaussianNoiseCfg = GaussianNoiseCfg(mean=0.0,std=0.01,operation="add")
+    action_noise_model = NoiseModelCfg(noise_cfg=GaussianNoiseCfg(mean=0.0,std=0.01,operation="add"))
 
     # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
-    observation_noise_model: NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
+    observation_noise_model= NoiseModelWithAdditiveBiasCfg(
       noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.002, operation="add"),
       bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.0001, operation="abs"),
     )
