@@ -267,6 +267,7 @@ class BittlehrlEnv(DirectRLEnv):
             ),
             dim=-1,
         )
+        obs=torch.nan_to_num(obs)
         observations = {"policy": obs} #print(f'obs={observations}')
         return observations
 
@@ -307,7 +308,7 @@ class BittlehrlEnv(DirectRLEnv):
             near_goal_bots +
             self.microrewards
         )
-
+        reward=torch.nan_to_num(reward,nan=0,posinf=+1,neginf=-1)
         return reward
 
 
@@ -377,7 +378,7 @@ class BittlehrlEnv(DirectRLEnv):
             2 * (quat[:, 0] * quat[:, 1] + quat[:, 2] * quat[:, 3]),
             1 - 2 * (quat[:, 1] ** 2 + quat[:, 2] ** 2),
         )
-        pitch = torch.asin(2 * (quat[:, 0] * quat[:, 2] - quat[:, 3] * quat[:, 1]))
+        pitch = torch.asin(torch.clamp(2 * (quat[:, 0] * quat[:, 2] - quat[:, 3] * quat[:, 1]),min=-1,max=+1))
         yaw=torch.atan2(
             2 * (quat[:, 0] * quat[:, 3] + quat[:, 1] * quat[:, 2]),
             1 - 2 * (quat[:, 2] ** 2 + quat[:, 3] ** 2),
