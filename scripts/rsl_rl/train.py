@@ -78,7 +78,7 @@ from rsl_rl.runners import OnPolicyRunner
 from rsl_rl.modules import ActorCritic 
 from torch.distributions import Normal
 import torch
-
+import rsl_rl.modules
 
 ## since 
 
@@ -97,7 +97,7 @@ class SafeActorCritic(ActorCritic):
         self.distribution = Normal(mean, std)
         print(f'min std: {std.min().item()}, max std: {std.max().item()}') #debug prints
 
-ActorCritic=SafeActorCritic ## changing the actor critic module to generate safe stds and prevent PPO from breaking
+rsl_rl.modules.ActorCritic=SafeActorCritic ## changing the actor critic module to generate safe stds and prevent PPO from breaking
 
 
 from isaaclab.envs import (
@@ -189,6 +189,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # create runner from rsl-rl
     runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+    print(type(runner))
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
     # load the checkpoint
