@@ -23,8 +23,15 @@ from isaaclab.sensors.frame_transformer import FrameTransformerCfg
 from isaaclab.sensors import ContactSensorCfg,ImuCfg
 import gymnasium.spaces as spaces
 import torch 
+from isaaclab.managers import EventTermCfg as EventTerm
+import isaaclab.envs.mdp as mdp
+from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg,GaussianNoiseCfg
 
 BITTLE_ASSET_DIR = Path(__file__).resolve().parent
+## Add domain randomization code here. situations to be simulated: 1. pushes 2. robot material per reset
+# @configclass
+# class EventCfg:
+
 
 
 @configclass
@@ -38,6 +45,16 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     observation_space = 25
 
     state_space = 0
+
+    ## Noise model-- adding gaussian noise to action and observations
+        # only per-step noise
+    action_noise_model: GaussianNoiseCfg = GaussianNoiseCfg(mean=0.0,std=0.01,operation="add")
+
+    # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
+    observation_noise_model: NoiseModelWithAdditiveBiasCfg = NoiseModelWithAdditiveBiasCfg(
+      noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.002, operation="add"),
+      bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.0001, operation="abs"),
+    )
     
     # ====== SIMULATION ======
     sim: SimulationCfg = SimulationCfg(
@@ -179,7 +196,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
         slope_threshold=0.75,
         use_cache=False,
         sub_terrains={
-            "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=1.0)
+            "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.3),
             #     # "hf_pyramid_slope": terrain_gen.HfPyramidSlopedTerrainCfg(
             #     #     proportion=0.2, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
             #     # ),
@@ -197,9 +214,8 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
             # # "wave_terrain": terrain_gen.HfWaveTerrainCfg(
             # #    proportion=0.33, amplitude_range=(0.0, 0.06), num_waves=4, border_width=0.25
             # #),
-            # "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
-            #     proportion=0.7, noise_range=(0.0, 0.002), noise_step=0.0005, border_width=0.25
-            # ),
+            "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
+                proportion=0.7, noise_range=(0.0, 0.005), noise_step=0.0005, border_width=0.25)
             })
     terrain = TerrainImporterCfg(
         prim_path="/World/Ground",
