@@ -95,6 +95,7 @@ class SafeActorCritic(ActorCritic):
             raise ValueError(f"Unknown standard deviation type: {self.noise_std_type}. Should be 'scalar' or 'log'")
         # create distribution
         self.distribution = Normal(mean, std)
+        print(f'min std: {std.min().item()}, max std: {std.max().item()}') #debug prints
 
 ActorCritic=SafeActorCritic ## changing the actor critic module to generate safe stds and prevent PPO from breaking
 
