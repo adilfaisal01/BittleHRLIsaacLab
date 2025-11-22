@@ -74,13 +74,11 @@ import os
 import torch
 from datetime import datetime
 
-from rsl_rl.runners import OnPolicyRunner
+
 from rsl_rl.modules import ActorCritic 
 from torch.distributions import Normal
 import torch
 import rsl_rl.modules
-
-## since 
 
 class SafeActorCritic(ActorCritic):
     def update_distribution(self, observations):
@@ -99,7 +97,7 @@ class SafeActorCritic(ActorCritic):
 
 rsl_rl.modules.ActorCritic=SafeActorCritic ## changing the actor critic module to generate safe stds and prevent PPO from breaking
 
-
+from rsl_rl.runners import OnPolicyRunner
 from isaaclab.envs import (
     DirectMARLEnv,
     DirectMARLEnvCfg,
