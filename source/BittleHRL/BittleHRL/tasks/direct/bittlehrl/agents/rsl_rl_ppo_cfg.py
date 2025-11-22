@@ -13,7 +13,7 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 128
     max_iterations = 150
     save_interval = 50
-    experiment_name = "bittlehrl_run1_wth 64x3 hidden layers"
+    experiment_name = "bittlehrl_run1"
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
@@ -30,7 +30,7 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
         num_learning_epochs=5,
         num_mini_batches=4,
         learning_rate=1.0e-4,
-        schedule="adaptive",
+        schedule="fixed",
         gamma=0.99,
         lam=0.95,
         desired_kl=0.04,
