@@ -13,7 +13,7 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 128
     max_iterations = 150
     save_interval = 50
-    experiment_name = "bittlehrl_run1"
+    experiment_name = "bittlehrl_run1_128envs_1000steps"
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
