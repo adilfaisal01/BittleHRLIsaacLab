@@ -10,29 +10,29 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 
 @configclass
 class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    seed=1000
-    num_steps_per_env = 64
+    num_steps_per_env = 128
     max_iterations = 150
     save_interval = 50
     experiment_name = "bittlehrl_run1_wth 64x3 hidden layers"
-    empirical_normalization = False
+    empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
-        init_noise_std=1.5,
-        actor_hidden_dims=[64,64,64],
-        critic_hidden_dims=[64,64,64],
+        init_noise_std=1.0,
+        actor_hidden_dims=[128,128,128],
+        critic_hidden_dims=[256,256],
         activation="relu",
+	noise_std_type="log"
     )
     algorithm = RslRlPpoAlgorithmCfg(
         value_loss_coef=0.5,
         use_clipped_value_loss=True,
-        clip_param=0.2,
-        entropy_coef=0.03,
-        num_learning_epochs=10,
-        num_mini_batches=8,
-        learning_rate=1.0e-3,
+        clip_param=0.15,
+        entropy_coef=0.009,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-4,
         schedule="adaptive",
         gamma=0.99,
         lam=0.95,
-        desired_kl=0.01,
+        desired_kl=0.04,
         max_grad_norm=1.0,
     )

@@ -48,7 +48,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
 
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8,
-        env_spacing=20.0,
+        env_spacing=15.0,
         replicate_physics=True,
         filter_collisions=True,
     )
@@ -126,17 +126,16 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     
     # micro rewrd terms, every action cycle these rewards are taken and measured
     rew_torques=-0.01
-    rew_roll=-0.09
-    rew_pitch=-0.09
-    rew_pitchrate=-0.007
-    rew_rollrate=-0.007
-    rew_height=-0.1
+    rew_roll=-0.009
+    rew_pitch=-0.009
+    rew_pitchrate=-0.0007
+    rew_rollrate=-0.0007
     # macro rewards, collected every RL step
-    rew_dist_goal=0.4
-    goal_reward=100
-    tipped_penalty=-10
-    near_goal_reward=90
-    upright_reward=2
+    rew_dist_goal=10
+    goal_reward=10
+    tipped_penalty=-1
+    near_goal_reward=9
+    upright_reward=0.9
     
 
     # ====== RAY CASTER (pelvis → ground) ======
@@ -160,7 +159,6 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     S = float(scene.env_spacing)
     rows = int(ceil(sqrt(N)))
     cols = int(ceil(N / rows))
-
     static_fric=float(torch.normal(0.5,0.1,size=(1,1)))
     dyn_fric= float(torch.normal(0.3,0.15,size=(1,1)))
 
@@ -181,7 +179,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
         slope_threshold=0.75,
         use_cache=False,
         sub_terrains={
-            "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.34),
+            "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.3),
                 # "hf_pyramid_slope": terrain_gen.HfPyramidSlopedTerrainCfg(
                 #     proportion=0.2, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
                 # ),
@@ -196,11 +194,11 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
                 #     proportion=0.05, step_height_range=(0.0, 0.1), step_width=0.3,
                 #     platform_width=3.0, border_width=1.0, holes=False
                 # ),
-            "wave_terrain": terrain_gen.HfWaveTerrainCfg(
-                proportion=0.33, amplitude_range=(0.0, 0.06), num_waves=4, border_width=0.25
-            ),
+            # "wave_terrain": terrain_gen.HfWaveTerrainCfg(
+            #    proportion=0.33, amplitude_range=(0.0, 0.06), num_waves=4, border_width=0.25
+            #),
             "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
-                proportion=0.33, noise_range=(0.0, 0.06), noise_step=0.02, border_width=0.25
+                proportion=0.7, noise_range=(0.0, 0.06), noise_step=0.005, border_width=0.25
             ),
             })
     terrain = TerrainImporterCfg(

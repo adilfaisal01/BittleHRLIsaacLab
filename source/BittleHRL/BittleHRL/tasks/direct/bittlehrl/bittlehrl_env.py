@@ -245,7 +245,7 @@ class BittlehrlEnv(DirectRLEnv):
         pitch_rate=self.robot.data.root_ang_vel_b[:,1]
         penalties=self.cfg.rew_roll*torch.abs(roll)+self.cfg.rew_pitch*torch.abs(pitch)+self.cfg.rew_torques*sum_torques+self.cfg.rew_rollrate*torch.abs(roll_rate)+self.cfg.rew_pitchrate*torch.abs(pitch_rate)
         #per action step, the low level rewards are added
-        self.microrewards=self.cfg.upright_reward+penalties+0.9*self.microrewards
+        self.microrewards=torch.tanh(self.cfg.upright_reward+penalties+self.microrewards)
        
     def _get_observations(self) -> dict:
         
@@ -264,12 +264,10 @@ class BittlehrlEnv(DirectRLEnv):
                 yaw.unsqueeze(-1),
                 self.joint_vel,
                 self.joint_pos,
-            
-                
             ),
             dim=-1,
         )
-        observations = {"policy": obs}
+        observations = {"policy": obs} #print(f'obs={observations}')
         return observations
 
 # ew_vx=-1
@@ -301,9 +299,7 @@ class BittlehrlEnv(DirectRLEnv):
         )
         near_goal_bots = torch.where(
             near_goal, torch.tensor(self.cfg.near_goal_reward, device=self.device), torch.tensor(0.0, device=self.device)
-        )
-
-
+        ) #print(f'microrewards={self.microrewards},distance={distance_covered},goal_arrival_bots={goal_arrival_bots},rew_distance={distance_covered* self.cfg.rew_dist_goal}')
         reward = (
             distance_covered* self.cfg.rew_dist_goal +
             goal_arrival_bots +
