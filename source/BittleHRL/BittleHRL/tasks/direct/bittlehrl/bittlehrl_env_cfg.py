@@ -215,7 +215,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
             # #    proportion=0.33, amplitude_range=(0.0, 0.06), num_waves=4, border_width=0.25
             # #),
             "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
-                proportion=0.7, noise_range=(0.00005, 0.005), noise_step=0.0005, border_width=0.25)
+                proportion=0.7, noise_range=(0.005, 0.01), noise_step=0.005, border_width=0.25)
             })
     terrain = TerrainImporterCfg(
         prim_path="/World/Ground",
