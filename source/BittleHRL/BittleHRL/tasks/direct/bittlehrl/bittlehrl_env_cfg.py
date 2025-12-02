@@ -177,7 +177,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     goal_reward=10
     tipped_penalty=-1
     near_goal_reward=9
-    upright_reward=0.20
+    upright_reward=0.40
     
 
     # ====== RAY CASTER (pelvis → ground) ======
