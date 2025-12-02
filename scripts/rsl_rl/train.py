@@ -75,9 +75,8 @@ import torch
 from datetime import datetime
 
 
-from rsl_rl.modules import ActorCritic 
+from rsl_rl.modules import ActorCritic
 from torch.distributions import Normal
-import torch
 import rsl_rl.modules
 
 class SafeActorCritic(ActorCritic):
@@ -93,7 +92,7 @@ class SafeActorCritic(ActorCritic):
             raise ValueError(f"Unknown standard deviation type: {self.noise_std_type}. Should be 'scalar' or 'log'")
         # create distribution
         self.distribution = Normal(mean, std)
-        print(f'min std: {std.min().item()}, max std: {std.max().item()}') #debug prints
+        print(f'min std: {std.min().item()}, max std: {std.max().item()}')  #debug prints
 
 rsl_rl.modules.ActorCritic=SafeActorCritic ## changing the actor critic module to generate safe stds and prevent PPO from breaking
 
