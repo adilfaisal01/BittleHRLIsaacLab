@@ -24,13 +24,37 @@ from isaaclab.sensors import ContactSensorCfg,ImuCfg
 import gymnasium.spaces as spaces
 import torch 
 from isaaclab.managers import EventTermCfg as EventTerm
-import isaaclab.envs.mdp as mdp
+from isaaclab.managers import SceneEntityCfg
+import isaaclab.envs.mdp.events as mdp
 from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg,GaussianNoiseCfg,NoiseModelCfg
 
 BITTLE_ASSET_DIR = Path(__file__).resolve().parent
 ## Add domain randomization code here. situations to be simulated: 1. pushes 2. robot material per reset
-# @configclass
-# class EventCfg:
+@configclass
+class EventCfg:
+   robot_physics_material=EventTerm(
+       func=mdp.randomize_rigid_body_material,
+       mode="reset",
+       params={
+           "asset_cfg": SceneEntityCfg("robot",body_names=".*"),
+           "static_friction_range":(0.5,1.2),
+           "dynamic_friction_range":(0.3,0.9),
+           "restitution_range":(0.0,0.0),
+           "num_buckets":256,
+       }
+   )
+   add_base_mass=EventTerm(
+       func=mdp.randomize_rigid_body_mass,
+       mode="reset",
+       params={
+           "asset_cfg": SceneEntityCfg("robot",body_names="base_frame_link"),
+           "mass_distribution_params":(-0.10,0.10),
+           "operation":"add",
+       }
+
+
+   )
+    
 
 
 
@@ -114,7 +138,8 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
         },
     )
     robot_cfg: ArticulationCfg = bittle
-    
+    events: EventCfg = EventCfg()
+
     #sensors
 
     # imu=ImuCfg(
