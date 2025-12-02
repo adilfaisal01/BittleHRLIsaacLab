@@ -74,8 +74,30 @@ import os
 import torch
 from datetime import datetime
 
-from rsl_rl.runners import OnPolicyRunner
 
+from rsl_rl.modules import ActorCritic 
+from torch.distributions import Normal
+import torch
+import rsl_rl.modules
+
+class SafeActorCritic(ActorCritic):
+    def update_distribution(self, observations):
+    # compute mean
+        mean = self.actor(observations)
+        # compute standard deviation
+        if self.noise_std_type == "scalar":
+            std = self.std.clamp(min=1e-6).expand_as(mean)
+        elif self.noise_std_type == "log":
+            std = torch.exp(self.log_std).clamp(min=1e-6).expand_as(mean)
+        else:
+            raise ValueError(f"Unknown standard deviation type: {self.noise_std_type}. Should be 'scalar' or 'log'")
+        # create distribution
+        self.distribution = Normal(mean, std)
+        print(f'min std: {std.min().item()}, max std: {std.max().item()}') #debug prints
+
+rsl_rl.modules.ActorCritic=SafeActorCritic ## changing the actor critic module to generate safe stds and prevent PPO from breaking
+
+from rsl_rl.runners import OnPolicyRunner
 from isaaclab.envs import (
     DirectMARLEnv,
     DirectMARLEnvCfg,
@@ -165,6 +187,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # create runner from rsl-rl
     runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+    print(type(runner.alg.policy))
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
     # load the checkpoint
