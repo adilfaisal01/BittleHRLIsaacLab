@@ -10,14 +10,14 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 
 @configclass
 class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 128
+    num_steps_per_env = 64
     max_iterations = 150
-    save_interval = 50
-    experiment_name = "bittlehrl_run1_128envs_1000steps"
+    save_interval = 100
+    experiment_name = "bittlehrl_DR2_fullsend"
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
-        actor_hidden_dims=[128,128,128],
+        actor_hidden_dims=[256,256,256],
         critic_hidden_dims=[256,256],
         activation="relu",
 	noise_std_type="log"
