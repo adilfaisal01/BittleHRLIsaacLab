@@ -75,6 +75,8 @@ from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
 import BittleHRL.tasks  # noqa: F401
+from torch.utils.tensorboard import SummaryWriter
+
 
 
 @hydra_task_config(args_cli.task, "rsl_rl_cfg_entry_point")
@@ -108,6 +110,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
     log_dir = os.path.dirname(resume_path)
+    writer=SummaryWriter(log_dir=log_dir)
+    print(f"writing tensorboard metrics to {log_dir}")
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
@@ -122,7 +126,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             "video_folder": os.path.join(log_dir, "videos", "play"),
             "step_trigger": lambda step: step == 0,
             "video_length": args_cli.video_length,
-            "disable_logger": True,
+            "disable_logger": False,
         }
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)
@@ -133,7 +137,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     print(f"[INFO]: Loading model checkpoint from: {resume_path}")
     # load previously trained model
-    ppo_runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+    ppo_runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
     ppo_runner.load(resume_path)
 
     # obtain the trained policy for inference
@@ -160,6 +164,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # reset environment
     obs, _ = env.get_observations()
     timestep = 0
+    episode_reward = torch.zeros(env_cfg.scene.num_envs, device=env.unwrapped.device)
+    episode_length = torch.zeros(env_cfg.scene.num_envs, device=env.unwrapped.device)
+
     # simulate environment
     while simulation_app.is_running():
         start_time = time.time()
@@ -168,7 +175,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             # agent stepping
             actions = policy(obs)
             # env stepping
-            obs, _, _, _ = env.step(actions)
+            obs, rewards, dones, _ = env.step(actions)
+        episode_reward=episode_reward+rewards
+        episode_length=episode_length+1
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video
@@ -179,6 +188,26 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         sleep_time = dt - (time.time() - start_time)
         if args_cli.real_time and sleep_time > 0:
             time.sleep(sleep_time)
+        
+        if dones.any():
+            done_indices = dones.nonzero(as_tuple=False).squeeze(-1)
+            for idx in done_indices:
+                writer.add_scalar("inference/rewards", episode_reward.mean().item())
+                writer.add_scalar("inference/episode_lengths", episode_length.mean().item())
+                writer.add_scalar('inference/avg_episode_reward',episode_reward.mean().item()/episode_length.mean().item())
+
+            # reset metrics for completed episodes
+            episode_reward[done_indices] = 0
+            episode_length[done_indices] = 0
+    
+    writer.add_scalar('inference/rewards',episode_reward.mean().item())
+    writer.add_scalar('inference/episode_lengths', episode_length.mean().item())
+    writer.add_scalar('inference/avg_episode_reward',episode_reward.mean().item()/episode_length.mean().item())
+
+    
+
+    writer.close()
+    print(f"writing tensorboard metrics to {log_dir}")
 
     # close the simulator
     env.close()
