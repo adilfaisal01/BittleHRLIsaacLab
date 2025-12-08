@@ -37,11 +37,11 @@ class BittlehrlEnv(DirectRLEnv):
         #self.device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         
-        # action_scale = np.array([150,0.667,0.46],dtype=np.float32) #forward velocity, period, duty cycle, swing height, yaw_rate respectively
+        # action_scale = np.array([150,0.667,0.46],dtype=np.float32) #forward velocity, period, duty cycle, swing height, yaw_rate, xCOM_shift, robot_height respectively
         # action_bias=np.array([50,0.33,0.5],dtype=np.float32)
 
-        self.act_scale=torch.tensor([250,0.667,0.46,3,2],dtype=torch.float32,device=self.device) #action scale
-        self.act_bias=torch.tensor([100,0.33,0.5,5,-1],dtype=torch.float32,device=self.device) #action bias
+        self.act_scale=torch.tensor([250,0.667,0.46,3,2,30,25],dtype=torch.float32,device=self.device) #action scale
+        self.act_bias=torch.tensor([100,0.33,0.5,5,-1,-15,10],dtype=torch.float32,device=self.device) #action bias
         self.jointcorrectionsfactor=torch.deg2rad(torch.tensor(5,device=self.device)) #+/-5 degrees correction, tiny corrections on top of the cpg output
         self.jointcorrs=torch.rand(self.scene.num_envs,8)
 
@@ -198,7 +198,7 @@ class BittlehrlEnv(DirectRLEnv):
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         
         # decoding normalized actions into convertable values and updating the dataclass
-        gait_param_NNs=actions[:,:5]
+        gait_param_NNs=actions[:,:7]
         actions_clamped_01=torch.sigmoid(gait_param_NNs)
         actions_true=actions_clamped_01*self.act_scale.unsqueeze(0)+self.act_bias.unsqueeze(0)
         fv=actions_true[:,0]
@@ -206,14 +206,18 @@ class BittlehrlEnv(DirectRLEnv):
         dc=actions_true[:,2]
         swingH=actions_true[:,3]
         yaw=actions_true[:,4]
+        xCOM=actions_true[:,5]
+        r_height=actions_true[:,6]
         self.gaitcommands.forwardvel=torch.clamp(fv,min=100,max=250)
         self.gaitcommands.T=torch.clamp(gaitT,min=0.33,max=1)
         self.gaitcommands.dutycycle=torch.clamp(dc,min=0.5,max=0.9)
         self.gaitcommands.H=torch.clamp(swingH,min=5,max=8)
         self.gaitcommands.yaw_rate=torch.clamp(yaw,min=-2,max=4)
+        self.gaitcommands.x_COMshift=torch.clamp(xCOM, min=-15, max=30)
+        self.gaitcommands.robotheight=torch.clamp(r_height,min=10,max=25)
 
         ### adding residuals to joint angles
-        residuals_NN=torch.tanh(actions[:,5:])
+        residuals_NN=torch.tanh(actions[:,7:])
         self.jointcorrs=self.jointcorrectionsfactor*residuals_NN
         # print(f'forwardvel :{fv}',f'T: {gaitT}',f'duty cycle: {dc}')
         # print(f'Normalized actions:{actions}, Clamped actions={actions_clamped}')

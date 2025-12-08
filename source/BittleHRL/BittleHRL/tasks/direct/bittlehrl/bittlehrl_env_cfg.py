@@ -60,32 +60,17 @@ class EventCfg:
             "velocity_range": {
                 "x": (-0.01,0.01),
                 "y": (-0.02,0.01),
-                "yaw": (-1,+1),
             },
        }
    )
-   robot_joint_stiffness_and_damping = EventTerm(
-      func=mdp.randomize_actuator_gains,
-      mode="reset",
-      params={
-          "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
-          "stiffness_distribution_params": (0.75, 1.5),
-          "damping_distribution_params": (0.3, 3.0),
-          "operation": "scale",
-          "distribution": "log_uniform",
-      }
-   )
    
-
-
-    
-
+   
 @configclass
 class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== ENV / TIMING ======
     decimation = 40 #number of control steps between policy updates, policy runs at 5 Hz, simulation at 100 Hz
     episode_length_s = 40
-    action_space = spaces.Box(low= 0,high=1,dtype=np.float32,shape=(13,)) #normalized actions
+    action_space = spaces.Box(low= 0,high=1,dtype=np.float32,shape=(15,)) #normalized actions
     # 1) your basic scalar limits
     
     observation_space = 25
@@ -94,11 +79,11 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
 
     ## Noise model-- adding gaussian noise to action and observations
         # only per-step noise
-    action_noise_model = NoiseModelCfg(noise_cfg=GaussianNoiseCfg(mean=0.0,std=0.01,operation="add"))
+    action_noise_model = NoiseModelCfg(noise_cfg=GaussianNoiseCfg(mean=0.0,std=0.005,operation="add"))
 
     # at every time-step add gaussian noise + bias. The bias is a gaussian sampled at reset
     observation_noise_model= NoiseModelWithAdditiveBiasCfg(
-      noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.02, operation="add"),
+      noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.005, operation="add"),
       bias_noise_cfg=GaussianNoiseCfg(mean=0.0, std=0.001, operation="abs"),
     )
     

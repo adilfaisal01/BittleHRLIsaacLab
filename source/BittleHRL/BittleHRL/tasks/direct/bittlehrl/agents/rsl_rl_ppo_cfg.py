@@ -13,12 +13,12 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 64
     max_iterations = 150
     save_interval = 100
-    experiment_name = "bittlehrl_DR2_fullsend"
+    experiment_name = "bittlehrl_DR2"
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
-        actor_hidden_dims=[256,256,256],
-        critic_hidden_dims=[256,256],
+        actor_hidden_dims=[128,128,128],
+        critic_hidden_dims=[512,512],
         activation="relu",
 	noise_std_type="log"
     )
