@@ -40,7 +40,7 @@ class BittlehrlEnv(DirectRLEnv):
         # action_scale = np.array([150,0.667,0.46],dtype=np.float32) #forward velocity, period, duty cycle, swing height, yaw_rate, xCOM_shift, robot_height respectively
         # action_bias=np.array([50,0.33,0.5],dtype=np.float32)
 
-        self.act_scale=torch.tensor([250,0.667,0.46,3,2,30,25],dtype=torch.float32,device=self.device) #action scale
+        self.act_scale=torch.tensor([400,0.667,0.46,3,2,30,30],dtype=torch.float32,device=self.device) #action scale
         self.act_bias=torch.tensor([100,0.33,0.5,5,-1,-15,10],dtype=torch.float32,device=self.device) #action bias
         self.jointcorrectionsfactor=torch.deg2rad(torch.tensor(5,device=self.device)) #+/-5 degrees correction, tiny corrections on top of the cpg output
         self.jointcorrs=torch.rand(self.scene.num_envs,8)
@@ -208,13 +208,13 @@ class BittlehrlEnv(DirectRLEnv):
         yaw=actions_true[:,4]
         xCOM=actions_true[:,5]
         r_height=actions_true[:,6]
-        self.gaitcommands.forwardvel=torch.clamp(fv,min=100,max=250)
+        self.gaitcommands.forwardvel=torch.clamp(fv,min=100,max=400)
         self.gaitcommands.T=torch.clamp(gaitT,min=0.33,max=1)
         self.gaitcommands.dutycycle=torch.clamp(dc,min=0.5,max=0.9)
         self.gaitcommands.H=torch.clamp(swingH,min=5,max=8)
         self.gaitcommands.yaw_rate=torch.clamp(yaw,min=-2,max=4)
         self.gaitcommands.x_COMshift=torch.clamp(xCOM, min=-15, max=30)
-        self.gaitcommands.robotheight=torch.clamp(r_height,min=10,max=25)
+        self.gaitcommands.robotheight=torch.clamp(r_height,min=10,max=30)
 
         ### adding residuals to joint angles
         residuals_NN=torch.tanh(actions[:,7:])
@@ -247,9 +247,15 @@ class BittlehrlEnv(DirectRLEnv):
 
         roll_rate=self.robot.data.root_ang_vel_b[:,0]
         pitch_rate=self.robot.data.root_ang_vel_b[:,1]
-        penalties=self.cfg.rew_roll*torch.abs(roll)+self.cfg.rew_pitch*torch.abs(pitch)+self.cfg.rew_torques*sum_torques+self.cfg.rew_rollrate*torch.abs(roll_rate)+self.cfg.rew_pitchrate*torch.abs(pitch_rate)
+        penalties=(
+                    self.cfg.rew_roll*(torch.exp(torch.abs(roll))-1)+
+                    self.cfg.rew_pitch*(torch.exp(torch.abs(pitch))-1)+
+                    self.cfg.rew_torques*sum_torques+
+                    self.cfg.rew_rollrate*(torch.exp(torch.abs(roll_rate))-1)+
+                    self.cfg.rew_pitchrate*(torch.exp(torch.abs(pitch_rate))-1)
+        )
         #per action step, the low level rewards are added
-        self.microrewards=torch.tanh(self.cfg.upright_reward+penalties+self.microrewards)
+        self.microrewards=self.cfg.upright_reward+penalties+0.99*self.microrewards
        
     def _get_observations(self) -> dict:
         
@@ -257,6 +263,18 @@ class BittlehrlEnv(DirectRLEnv):
         x_vel,y_vel,z_vel=torch.unbind(linear_velocity,dim=1) #x,y,z velocities
         roll,pitch,yaw=self._extract_euler_angles() #3 separate angles
         pos=self.robot.data.root_link_pos_w #position of the robot in the world, where is the robot in the world
+        commands = torch.stack((
+        self.gaitcommands.forwardvel,
+        self.gaitcommands.T,
+        self.gaitcommands.dutycycle,
+        self.gaitcommands.H,
+        self.gaitcommands.yaw_rate,
+        self.gaitcommands.x_COMshift,
+        self.gaitcommands.robotheight
+    ), dim=-1)          # previous gait commands processed into a tensor
+        rel_distance_from_goal = self.goal_points[:, :2] - pos[:, :2]
+
+
         obs = torch.cat(
             (
                 pos,
@@ -268,6 +286,9 @@ class BittlehrlEnv(DirectRLEnv):
                 yaw.unsqueeze(-1),
                 self.joint_vel,
                 self.joint_pos,
+                self.Q,
+                commands,
+                rel_distance_from_goal
             ),
             dim=-1,
         )
@@ -275,15 +296,6 @@ class BittlehrlEnv(DirectRLEnv):
         observations = {"policy": obs} #print(f'obs={observations}')
         return observations
 
-# ew_vx=-1
-#     rew_vy=+5
-#     rew_vz=-1
-#     rew_joint_energy=-0.01
-#     rew_roll=-0.5
-#     rew_pitch=-0.5
-#     rew_dist_goal=-4 
-#     goal_reward=500
-#     tipped_penalty=-500
 
     def _get_rewards(self) -> torch.Tensor:
         pos = self.robot.data.root_link_pos_w
@@ -291,7 +303,6 @@ class BittlehrlEnv(DirectRLEnv):
         distance_from_goal = torch.norm(self.goal_points[:, :2] - pos[:, :2], dim=-1)
         distance_covered=self.prev_distance-distance_from_goal
         self.prev_distance = distance_from_goal
-
         at_goal = (distance_from_goal < 0.20) & (torch.abs(roll) < 0.3) & (torch.abs(pitch) < 0.2)
         is_tipped = (torch.abs(roll) > 0.8) | (torch.abs(pitch) > 0.8)
         near_goal = (distance_from_goal < 0.50) & (distance_from_goal >= 0.20)
@@ -310,10 +321,13 @@ class BittlehrlEnv(DirectRLEnv):
             goal_arrival_bots +
             tipped_bots +
             near_goal_bots +
-            self.microrewards
+            self.microrewards-
+            0.50*torch.sum(torch.square(self.jointcorrs),dim=1)+
+            self.cfg.impatience_reward
         )
-        reward=torch.nan_to_num(reward,nan=0,posinf=+1,neginf=-1)
-        return reward
+        reward=torch.nan_to_num(reward,nan=0)
+
+        return reward/100
 
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:

@@ -73,7 +73,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     action_space = spaces.Box(low= 0,high=1,dtype=np.float32,shape=(15,)) #normalized actions
     # 1) your basic scalar limits
     
-    observation_space = 25
+    observation_space = 42
 
     state_space = 0
 
@@ -174,17 +174,18 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== REWARD WEIGHTS (from GymWrapper) =====
     
     # micro rewrd terms, every action cycle these rewards are taken and measured
-    rew_torques=-0.01
-    rew_roll=-0.009
-    rew_pitch=-0.009
-    rew_pitchrate=-0.0007
-    rew_rollrate=-0.0007
+    rew_torques=-0.1
+    rew_roll=-0.09
+    rew_pitch=-0.09
+    rew_pitchrate=-0.007
+    rew_rollrate=-0.007
+    upright_reward=0.40 #ur
     # macro rewards, collected every RL step
-    rew_dist_goal=10
-    goal_reward=10
-    tipped_penalty=-1
-    near_goal_reward=9
-    upright_reward=0.40
+    rew_dist_goal=45
+    goal_reward=2000
+    tipped_penalty=-600
+    near_goal_reward=0.9*goal_reward
+    impatience_reward=-41 #rush the RL agent to get the goal point, max HL reward for standing perfectly still= (ur)/(1-0.99)
     
 
     # ====== RAY CASTER (pelvis → ground) ======
@@ -245,10 +246,10 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
             #     #     platform_width=3.0, border_width=1.0, holes=False
             #     # ),
             "wave_terrain": terrain_gen.HfWaveTerrainCfg(
-               proportion=0.3, amplitude_range=(0.005, 0.01), num_waves=4, border_width=0.25
+               proportion=0.3, amplitude_range=(0.005, 0.06), num_waves=4, border_width=0.25
             ),
             "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
-                proportion=0.5, noise_range=(0.005, 0.01), noise_step=0.005, border_width=0.25)
+                proportion=0.5, noise_range=(0.005, 0.06), noise_step=0.005, border_width=0.25)
             })
     terrain = TerrainImporterCfg(
         prim_path="/World/Ground",

@@ -13,20 +13,20 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 64
     max_iterations = 150
     save_interval = 100
-    experiment_name = "bittlehrl_DR2"
+    experiment_name = "bittlehrl_DR3"
     empirical_normalization = True
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
         actor_hidden_dims=[128,128,128],
         critic_hidden_dims=[512,512],
         activation="relu",
-	noise_std_type="log"
+	noise_std_type="scalar"
     )
     algorithm = RslRlPpoAlgorithmCfg(
         value_loss_coef=0.5,
         use_clipped_value_loss=True,
         clip_param=0.15,
-        entropy_coef=0.009,
+        entropy_coef=0.02,
         num_learning_epochs=5,
         num_mini_batches=4,
         learning_rate=1.0e-4,
