@@ -30,39 +30,39 @@ from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg,GaussianNoiseCfg,
 
 BITTLE_ASSET_DIR = Path(__file__).resolve().parent
 ## Add domain randomization code here. situations to be simulated: 1. pushes 2. robot material per reset
-@configclass
-class EventCfg:
-   robot_physics_material=EventTerm(
-       func=mdp.randomize_rigid_body_material,
-       mode="reset",
-       params={
-           "asset_cfg": SceneEntityCfg("robot",body_names=".*"),
-           "static_friction_range":(0.5,1.2),
-           "dynamic_friction_range":(0.3,0.9),
-           "restitution_range":(0.0,0.0),
-           "num_buckets":256,
-       }
-   )
-   add_base_mass=EventTerm(
-       func=mdp.randomize_rigid_body_mass,
-       mode="reset",
-       params={
-           "asset_cfg": SceneEntityCfg("robot",body_names="base_frame_link"),
-           "mass_distribution_params":(-0.05,0.20),
-           "operation":"add",
-       }
-   )
-   adding_random_pushes=EventTerm(
-       func=mdp.push_by_setting_velocity,
-       mode="reset",
-       params={
-            "asset_cfg": SceneEntityCfg("robot",body_names="base_frame_link"),
-            "velocity_range": {
-                "x": (-0.01,0.01),
-                "y": (-0.02,0.01),
-            },
-       }
-   )
+# @configclass
+# class EventCfg:
+#    robot_physics_material=EventTerm(
+#        func=mdp.randomize_rigid_body_material,
+#        mode="reset",
+#        params={
+#            "asset_cfg": SceneEntityCfg("robot",body_names=".*"),
+#            "static_friction_range":(0.5,1.2),
+#            "dynamic_friction_range":(0.3,0.9),
+#            "restitution_range":(0.0,0.0),
+#            "num_buckets":256,
+#        }
+#    )
+#    add_base_mass=EventTerm(
+#        func=mdp.randomize_rigid_body_mass,
+#        mode="reset",
+#        params={
+#            "asset_cfg": SceneEntityCfg("robot",body_names="base_frame_link"),
+#            "mass_distribution_params":(-0.05,0.20),
+#            "operation":"add",
+#        }
+#    )
+# #    adding_random_pushes=EventTerm(
+# #        func=mdp.push_by_setting_velocity,
+# #        mode="reset",
+# #        params={
+# #             "asset_cfg": SceneEntityCfg("robot",body_names="base_frame_link"),
+# #             "velocity_range": {
+# #                 "x": (-0.01,0.01),
+# #                 "y": (-0.02,0.01),
+# #             },
+# #        }
+# #    )
    
    
 @configclass
@@ -70,10 +70,10 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== ENV / TIMING ======
     decimation = 40 #number of control steps between policy updates, policy runs at 5 Hz, simulation at 100 Hz
     episode_length_s = 40
-    action_space = spaces.Box(low= 0,high=1,dtype=np.float32,shape=(15,)) #normalized actions
+    action_space = 7 #normalized actions
     # 1) your basic scalar limits
     
-    observation_space = 42
+    observation_space = 52
 
     state_space = 0
 
@@ -145,7 +145,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
         },
     )
     robot_cfg: ArticulationCfg = bittle
-    events: EventCfg = EventCfg()
+    # events: EventCfg = EventCfg()
 
     #sensors
 
@@ -174,18 +174,21 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== REWARD WEIGHTS (from GymWrapper) =====
     
     # micro rewrd terms, every action cycle these rewards are taken and measured
-    rew_torques=-0.1
-    rew_roll=-0.09
-    rew_pitch=-0.09
-    rew_pitchrate=-0.007
-    rew_rollrate=-0.007
-    upright_reward=0.40 #ur
+    rew_torques=-0.00
+    rew_tilt=-0.02
+    rew_pitch_scale=-0.006
+    rew_roll_scale=-0.006
+    rew_jointaccel=-0.006
+    upright_reward=4 #ur
     # macro rewards, collected every RL step
-    rew_dist_goal=45
+    rew_dist_goal=60
     goal_reward=2000
     tipped_penalty=-600
-    near_goal_reward=0.9*goal_reward
-    impatience_reward=-41 #rush the RL agent to get the goal point, max HL reward for standing perfectly still= (ur)/(1-0.99)
+    near_goal_reward=0.75*goal_reward
+    rew_action_continuity=-0.02
+    rew_ep_len=0.10
+    rew_heading=20
+    rew_static=-0.2
     
 
     # ====== RAY CASTER (pelvis → ground) ======
@@ -209,8 +212,8 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     S = float(scene.env_spacing)
     rows = int(ceil(sqrt(N)))
     cols = int(ceil(N / rows))
-    static_fric=float(torch.normal(0.5,0.1,size=(1,1)))
-    dyn_fric= float(torch.normal(0.3,0.15,size=(1,1)))
+    static_fric=float(torch.rand(size=(1,1)))
+    dyn_fric= float(torch.rand(size=(1,1)))
 
     if static_fric>dyn_fric:
         pass
@@ -230,7 +233,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
         use_cache=False,
         curriculum=True, 
         sub_terrains={
-            "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.2),
+            "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.4),
             #     # "hf_pyramid_slope": terrain_gen.HfPyramidSlopedTerrainCfg(
             #     #     proportion=0.2, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
             #     # ),
@@ -245,11 +248,11 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
             #     #     proportion=0.05, step_height_range=(0.0, 0.1), step_width=0.3,
             #     #     platform_width=3.0, border_width=1.0, holes=False
             #     # ),
-            "wave_terrain": terrain_gen.HfWaveTerrainCfg(
-               proportion=0.3, amplitude_range=(0.005, 0.06), num_waves=4, border_width=0.25
-            ),
+            # "wave_terrain": terrain_gen.HfWaveTerrainCfg(
+            #    proportion=0.1, amplitude_range=(0.005, 0.02), num_waves=4, border_width=0.25
+            # ),
             "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
-                proportion=0.5, noise_range=(0.005, 0.06), noise_step=0.005, border_width=0.25)
+                proportion=0.6, noise_range=(0.005, 0.02), noise_step=0.005, border_width=0.25)
             })
     terrain = TerrainImporterCfg(
         prim_path="/World/Ground",
