@@ -25,6 +25,8 @@ WORKDIR /IsaacLab
 # --- Link isaac sim ---
 RUN ln -s ${ISAACSIM_PATH} _isaac_sim
 
+RUN /IsaacLab/_isaac_sim/kit/python/bin/python3 -m pip install --upgrade "pip<25.0" "packaging<24.0"
+
 # --- Install IsaacLab dependencies ---
 RUN --mount=type=cache,target=/root/.cache/pip \
     TERM=xterm ./isaaclab.sh --install
