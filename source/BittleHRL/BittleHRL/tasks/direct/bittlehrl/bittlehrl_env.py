@@ -401,7 +401,7 @@ class BittlehrlEnv(DirectRLEnv):
             is_tipped, torch.tensor(self.cfg.tipped_penalty, device=self.device), torch.tensor(0.0, device=self.device)
         )
         near_goal_bots = torch.where(
-            near_goal, torch.tensor(self.cfg.near_goal_reward*torch.exp(-4*distance_from_goal), device=self.device), torch.tensor(0.0, device=self.device)
+            near_goal, torch.tensor(self.cfg.near_goal_reward*torch.exp(-3*distance_from_goal), device=self.device), torch.tensor(0.0, device=self.device)
         )
 
         ## contuinuity between residuals to prevent snaps of the robot
