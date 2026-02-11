@@ -174,21 +174,21 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     # ====== REWARD WEIGHTS (from GymWrapper) =====
     
     # micro rewrd terms, every action cycle these rewards are taken and measured
-    rew_torques=-0.00
-    rew_tilt=-0.02
-    rew_pitch_scale=-0.006
-    rew_roll_scale=-0.006
-    rew_jointaccel=-0.006
-    upright_reward=4 #ur
+    rew_torques=-0.15
+    rew_tilt=-0.20
+    rew_pitch_scale=-0.20
+    rew_roll_scale=-0.20
+    rew_jointaccel=-0.06
+    upright_reward=1 #ur
     # macro rewards, collected every RL step
     rew_dist_goal=60
-    goal_reward=2000
-    tipped_penalty=-600
-    near_goal_reward=0.75*goal_reward
-    rew_action_continuity=-0.02
-    rew_ep_len=0.10
+    goal_reward=20
+    tipped_penalty=-3
+    near_goal_reward=0.50*goal_reward
+    rew_action_continuity=-0.10
+    rew_ep_len=0.005
     rew_heading=20
-    rew_static=-0.2
+    rew_static=-3
     
 
     # ====== RAY CASTER (pelvis → ground) ======
@@ -212,14 +212,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
     S = float(scene.env_spacing)
     rows = int(ceil(sqrt(N)))
     cols = int(ceil(N / rows))
-    static_fric=float(torch.rand(size=(1,1)))
-    dyn_fric= float(torch.rand(size=(1,1)))
-
-    if static_fric>dyn_fric:
-        pass
-    else:
-        dyn_fric=static_fric-float(torch.normal(0.05,0.014,size=(1,1)))
-
+  
     generator = TerrainGeneratorCfg(
         size=(S, S),
         border_width=0.1,
@@ -231,9 +224,9 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
         vertical_scale=0.005,
         slope_threshold=0.75,
         use_cache=False,
-        curriculum=True, 
+        curriculum=False, 
         sub_terrains={
-            "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.4),
+            "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.95),
             #     # "hf_pyramid_slope": terrain_gen.HfPyramidSlopedTerrainCfg(
             #     #     proportion=0.2, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
             #     # ),
@@ -252,7 +245,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
             #    proportion=0.1, amplitude_range=(0.005, 0.02), num_waves=4, border_width=0.25
             # ),
             "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
-                proportion=0.6, noise_range=(0.005, 0.02), noise_step=0.005, border_width=0.25)
+                proportion=0.05, noise_range=(0.005, 0.03), noise_step=0.005, border_width=0.25)
             })
     terrain = TerrainImporterCfg(
         prim_path="/World/Ground",
@@ -263,8 +256,8 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
             physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
-            static_friction=static_fric,
-                dynamic_friction=dyn_fric,
+            static_friction=1.0,
+                dynamic_friction=1.0
             ),
             debug_vis=False,
         )
