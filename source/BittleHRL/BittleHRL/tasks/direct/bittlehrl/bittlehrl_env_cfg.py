@@ -30,39 +30,39 @@ from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg,GaussianNoiseCfg,
 
 BITTLE_ASSET_DIR = Path(__file__).resolve().parent
 ## Add domain randomization code here. situations to be simulated: 1. pushes 2. robot material per reset
-# @configclass
-# class EventCfg:
-#    robot_physics_material=EventTerm(
-#        func=mdp.randomize_rigid_body_material,
+@configclass
+class EventCfg:
+   robot_physics_material=EventTerm(
+       func=mdp.randomize_rigid_body_material,
+       mode="reset",
+       params={
+           "asset_cfg": SceneEntityCfg("robot",body_names=".*"),
+           "static_friction_range":(0.5,1.2),
+           "dynamic_friction_range":(0.3,0.9),
+           "restitution_range":(0.0,0.0),
+           "num_buckets":256,
+       }
+   )
+   add_base_mass=EventTerm(
+       func=mdp.randomize_rigid_body_mass,
+       mode="reset",
+       params={
+           "asset_cfg": SceneEntityCfg("robot",body_names="base_frame_link"),
+           "mass_distribution_params":(-0.05,0.20),
+           "operation":"add",
+       }
+   )
+#    adding_random_pushes=EventTerm(
+#        func=mdp.push_by_setting_velocity,
 #        mode="reset",
 #        params={
-#            "asset_cfg": SceneEntityCfg("robot",body_names=".*"),
-#            "static_friction_range":(0.5,1.2),
-#            "dynamic_friction_range":(0.3,0.9),
-#            "restitution_range":(0.0,0.0),
-#            "num_buckets":256,
+#             "asset_cfg": SceneEntityCfg("robot",body_names="base_frame_link"),
+#             "velocity_range": {
+#                 "x": (-0.01,0.01),
+#                 "y": (-0.02,0.01),
+#             },
 #        }
 #    )
-#    add_base_mass=EventTerm(
-#        func=mdp.randomize_rigid_body_mass,
-#        mode="reset",
-#        params={
-#            "asset_cfg": SceneEntityCfg("robot",body_names="base_frame_link"),
-#            "mass_distribution_params":(-0.05,0.20),
-#            "operation":"add",
-#        }
-#    )
-# #    adding_random_pushes=EventTerm(
-# #        func=mdp.push_by_setting_velocity,
-# #        mode="reset",
-# #        params={
-# #             "asset_cfg": SceneEntityCfg("robot",body_names="base_frame_link"),
-# #             "velocity_range": {
-# #                 "x": (-0.01,0.01),
-# #                 "y": (-0.02,0.01),
-# #             },
-# #        }
-# #    )
    
    
 @configclass
@@ -145,7 +145,7 @@ class BittlehrlEnvCfg(DirectRLEnvCfg):
         },
     )
     robot_cfg: ArticulationCfg = bittle
-    # events: EventCfg = EventCfg()
+    events: EventCfg = EventCfg()
 
     #sensors
 
