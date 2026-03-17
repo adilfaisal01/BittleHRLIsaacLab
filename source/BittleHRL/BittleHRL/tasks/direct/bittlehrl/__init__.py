@@ -19,6 +19,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.bittlehrl_env_cfg:BittlehrlEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
+        "rsl_rl_distillation_entry_point": f"{agents.__name__}.rsl_rl_distillation_cfg:BittleDistillationCfg",
         "skrl_amp_cfg_entry_point": f"{agents.__name__}:skrl_amp_cfg.yaml",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },
