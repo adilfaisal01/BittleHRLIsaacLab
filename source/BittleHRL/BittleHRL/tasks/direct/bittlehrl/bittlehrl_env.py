@@ -329,16 +329,6 @@ class BittlehrlEnv(DirectRLEnv):
         phase_rad=torch.atan2(self.Q[:,0::2],self.Q[:,1::2])
         pi_tensor = torch.tensor(torch.pi, dtype=torch.float32, device=self.device)
         phase_norm = ((phase_rad + pi_tensor) / (2 * pi_tensor)).float()
-
-        privileged_info=torch.cat(
-            (
-                pos[:,2].unsqueeze(-1),
-                x_vel.unsqueeze(-1),
-                y_vel.unsqueeze(-1),
-                z_vel.unsqueeze(-1),
-                dist_b
-            ),dim=-1
-        )
         proprioceptive_info=torch.cat(
             (
                 commands,
@@ -347,7 +337,8 @@ class BittlehrlEnv(DirectRLEnv):
                 torch.sin(self.joint_pos),
                 torch.cos(self.joint_pos),
                 self.joint_vel,
-                phase_norm
+                phase_norm,
+                dist_b
             ),dim=-1
         )
 
@@ -368,8 +359,9 @@ class BittlehrlEnv(DirectRLEnv):
             ),
             dim=-1,
         )
-        obs=torch.nan_to_num(obs)
+        # obs=torch.nan_to_num(obs)
         observations = {"policy": proprioceptive_info, "teacher":obs} 
+        # observations={"policy":obs}
         #print(f'obs={observations}')
         return observations
 
