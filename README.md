@@ -39,7 +39,6 @@ Observation (proprioceptive)
 |---|---|
 | Navigation success rate | **69%** |
 | Tip-over rate | **< 1%** |
-| Joint tracking error | **< 10°** |
 
 ---
 
