@@ -1,135 +1,104 @@
-# Template for Isaac Lab Projects
+# BittleHRL — CPG-Guided RL for Quadruped Navigation in Isaac Lab
 
-## Overview
+Hierarchical locomotion and goal-directed navigation for the **Petoi Bittle** quadruped, trained entirely in simulation using NVIDIA Isaac Lab.
 
-This project/repository serves as a template for building projects or extensions based on Isaac Lab.
-It allows you to develop in an isolated environment, outside of the core Isaac Lab repository.
+The key idea: rather than having RL directly output joint angles, a high-level PPO policy outputs **gait parameters** that drive a **Hopf oscillator CPG**, which generates joint trajectories via inverse kinematics. This decouples *how to navigate* (RL's job) from *how to walk* (the CPG's job), producing more stable and transferable locomotion.
 
-**Key Features:**
+---
 
-- `Isolation` Work outside the core Isaac Lab repository, ensuring that your development efforts remain self-contained.
-- `Flexibility` This template is set up to allow your code to be run as an extension in Omniverse.
+## Architecture
 
-**Keywords:** extension, template, isaaclab
+```
+Observation (proprioceptive)
+        │
+        ▼
+  ┌─────────────┐        7 gait params        ┌───────────────────────┐
+  │  PPO Policy │ ────────────────────────── ▶ │  Hopf Oscillator CPG  │
+  │  (Actor)    │  fwd_vel, period, duty,      │  (Vectorized, batched)│
+  └─────────────┘  swing_H, yaw, COM, height   └──────────┬────────────┘
+                                                           │ phase signals
+                                                           ▼
+                                               ┌───────────────────────┐
+                                               │   Inverse Kinematics  │
+                                               │  hip + knee targets   │
+                                               └──────────┬────────────┘
+                                                           │
+                                                           ▼
+                                                  PD Controller → Robot
+```
 
-## Installation
+**Training pipeline (PPO → Distillation):**
+- **Teacher**: Privileged MLP (512×3 actor / 1024×4 critic) with access to full state including global position
+- **Student**: GRU-based recurrent policy (128×2 + 256-dim hidden state) trained via behavior distillation — runs on proprioception only, no GPS
 
-- Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
-  We recommend using the conda installation as it simplifies calling Python scripts from the terminal.
+---
 
-- Clone or copy this project/repository separately from the Isaac Lab installation (i.e. outside the `IsaacLab` directory):
+## Key Results
 
-- Using a python interpreter that has Isaac Lab installed, install the library in editable mode using:
+| Metric | Value |
+|---|---|
+| Navigation success rate | **69%** |
+| Tip-over rate | **< 1%** |
+| Joint tracking error | **< 10°** |
 
-    ```bash
-    # use 'PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-    python -m pip install -e source/BittleHRL
+---
 
-- Verify that the extension is correctly installed by:
+## Method Details
 
-    - Listing the available tasks:
+**Reward structure** — two-timescale design:
+- *Micro-rewards* (every physics step): upright bonus, torque penalty, joint acceleration penalty, pitch/roll balance terms
+- *Macro-rewards* (every RL step): velocity-goal alignment, heading alignment, goal arrival (+20), tip-over penalty
 
-        Note: It the task name changes, it may be necessary to update the search pattern `"Template-"`
-        (in the `scripts/list_envs.py` file) so that it can be listed.
+**Domain randomization** (per reset):
+- Surface friction: μ ∈ [0.5, 1.2] static, [0.3, 0.9] dynamic
+- Body mass perturbation: ±0.05–0.20 kg on base link
 
-        ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-        python scripts/list_envs.py
-        ```
+**Curriculum learning**: goal distance scales dynamically between 1–2 m based on a rolling 50-episode success rate buffer. Successful robots teleport to new positions; failed robots retry from where they fell.
 
-    - Running a task:
+**Observation space (52-dim)**: gait commands, angular velocity, projected gravity, sin/cos joint positions, joint velocities, CPG phase (normalized), relative goal vector in body frame
 
-        ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-        python scripts/<RL_LIBRARY>/train.py --task=<TASK_NAME>
-        ```
+---
 
-    - Running a task with dummy agents:
+## Setup
 
-        These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
-
-        - Zero-action agent
-
-            ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-            python scripts/zero_agent.py --task=<TASK_NAME>
-            ```
-        - Random-action agent
-
-            ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-            python scripts/random_agent.py --task=<TASK_NAME>
-            ```
-
-### Set up IDE (Optional)
-
-To setup the IDE, please follow these instructions:
-
-- Run VSCode Tasks, by pressing `Ctrl+Shift+P`, selecting `Tasks: Run Task` and running the `setup_python_env` in the drop down menu.
-  When running this task, you will be prompted to add the absolute path to your Isaac Sim installation.
-
-If everything executes correctly, it should create a file .python.env in the `.vscode` directory.
-The file contains the python paths to all the extensions provided by Isaac Sim and Omniverse.
-This helps in indexing all the python modules for intelligent suggestions while writing code.
-
-### Setup as Omniverse Extension (Optional)
-
-We provide an example UI extension that will load upon enabling your extension defined in `source/BittleHRL/BittleHRL/ui_extension_example.py`.
-
-To enable your extension, follow these steps:
-
-1. **Add the search path of this project/repository** to the extension manager:
-    - Navigate to the extension manager using `Window` -> `Extensions`.
-    - Click on the **Hamburger Icon**, then go to `Settings`.
-    - In the `Extension Search Paths`, enter the absolute path to the `source` directory of this project/repository.
-    - If not already present, in the `Extension Search Paths`, enter the path that leads to Isaac Lab's extension directory directory (`IsaacLab/source`)
-    - Click on the **Hamburger Icon**, then click `Refresh`.
-
-2. **Search and enable your extension**:
-    - Find your extension under the `Third Party` category.
-    - Toggle it to enable your extension.
-
-## Code formatting
-
-We have a pre-commit template to automatically format your code.
-To install pre-commit:
+Install [Isaac Lab](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html), then:
 
 ```bash
-pip install pre-commit
+git clone https://github.com/adilfaisal01/BittleHRLIsaacLab.git
+cd BittleHRLIsaacLab
+python -m pip install -e source/BittleHRL
 ```
 
-Then you can run pre-commit with:
-
+**Train (PPO teacher):**
 ```bash
-pre-commit run --all-files
+python scripts/rsl_rl/train.py --task=Template-BittleHRL-Direct-v0
 ```
 
-## Troubleshooting
-
-### Pylance Missing Indexing of Extensions
-
-In some VsCode versions, the indexing of part of the extensions is missing.
-In this case, add the path to your extension in `.vscode/settings.json` under the key `"python.analysis.extraPaths"`.
-
-```json
-{
-    "python.analysis.extraPaths": [
-        "<path-to-ext-repo>/source/BittleHRL"
-    ]
-}
+**Distill to GRU student:**
+```bash
+python scripts/rsl_rl/distill.py --task=Template-BittleHRL-Direct-v0
 ```
 
-### Pylance Crash
-
-If you encounter a crash in `pylance`, it is probable that too many files are indexed and you run out of memory.
-A possible solution is to exclude some of omniverse packages that are not used in your project.
-To do so, modify `.vscode/settings.json` and comment out packages under the key `"python.analysis.extraPaths"`
-Some examples of packages that can likely be excluded are:
-
-```json
-"<path-to-isaac-sim>/extscache/omni.anim.*"         // Animation packages
-"<path-to-isaac-sim>/extscache/omni.kit.*"          // Kit UI tools
-"<path-to-isaac-sim>/extscache/omni.graph.*"        // Graph UI tools
-"<path-to-isaac-sim>/extscache/omni.services.*"     // Services tools
-...
+**Play:**
+```bash
+python scripts/rsl_rl/play.py --task=Template-BittleHRL-Direct-v0
 ```
+
+Docker deployment configs are available in `docker-deployments/`.
+
+---
+
+## Stack
+
+- **Sim**: NVIDIA Isaac Lab (Isaac Sim backend)
+- **RL**: PPO via RSL-RL, with adaptive KL scheduling
+- **Distillation**: Teacher→Student via `RslRlDistillationStudentTeacherRecurrentCfg`
+- **Robot**: Petoi Bittle (8-DOF quadruped, URDF→USD)
+- **Language**: Python, PyTorch
+
+---
+
+## Related
+
+- [SE952--Bittle-Quadruped](https://github.com/adilfaisal01/SE952--Bittle-Quadruped) — earlier gait abstraction work on the same platform
+- [NeuroDynamics](https://github.com/adilfaisal01/NeuroDynamics) — transformer-based chaotic system identification
