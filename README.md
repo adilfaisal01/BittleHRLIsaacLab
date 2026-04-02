@@ -70,17 +70,17 @@ python -m pip install -e source/BittleHRL
 
 **Train (PPO teacher):**
 ```bash
-python scripts/rsl_rl/train.py --task=Template-BittleHRL-Direct-v0
+python scripts/rsl_rl/train.py --task=Template-Bittlehrl-Direct-v0
 ```
 
 **Distill to GRU student:**
 ```bash
-python scripts/rsl_rl/distill.py --task=Template-BittleHRL-Direct-v0
+python scripts/rsl_rl/play.py --task=Template-Bittlehrl-Distillation-v0
 ```
 
 **Play:**
 ```bash
-python scripts/rsl_rl/play.py --task=Template-BittleHRL-Direct-v0
+python scripts/rsl_rl/play.py --task=Template-Bittlehrl-Direct-v0
 ```
 
 Docker deployment configs are available in `docker-deployments/`.
