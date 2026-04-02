@@ -9,5 +9,5 @@ echo "🚀 Launching BittleHRL training..."
   --task Template-Bittlehrl-Direct-v0 \
   --num_envs $NUM_ENVS \
   --max_iterations $MAX_ITERS \
-  --video --headless --distributed --seed=-1
+  --video --headless --distributed --seed=42 --video_interval=10000
 
